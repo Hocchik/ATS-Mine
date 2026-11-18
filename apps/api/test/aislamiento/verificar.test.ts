@@ -7,7 +7,7 @@ import { crearLogger } from '../../src/logger';
 import { extenderConTenant } from '../../src/tenant/extension';
 import { limpiarBase, prismaPrueba } from '../db';
 import { crearMembresia, crearUsuario } from '../fabricas';
-import { cabecerasDeSesionReal, ORIGEN_PRUEBA, SECRETO_PRUEBA } from '../sesion-real';
+import { cabecerasDeSesionReal, SECRETO_PRUEBA, SEGURIDAD_PRUEBA } from '../sesion-real';
 import { verificarAislamiento } from './verificar';
 
 const prismaTenant = extenderConTenant(prismaPrueba);
@@ -137,7 +137,7 @@ describe('verificarAislamiento', () => {
     const { app, registro } = crearApp({
       logger: crearLogger('silent'),
       resolverSesion: resolverReal(),
-      webOrigin: ORIGEN_PRUEBA,
+      seguridad: SEGURIDAD_PRUEBA,
       modulos: [moduloConFugas],
     });
 
@@ -166,7 +166,7 @@ describe('verificarAislamiento', () => {
     const { app } = crearApp({
       logger: crearLogger('silent'),
       resolverSesion: resolverReal(),
-      webOrigin: ORIGEN_PRUEBA,
+      seguridad: SEGURIDAD_PRUEBA,
       modulos: [],
     });
     const definiciones: DefinicionRuta[] = [

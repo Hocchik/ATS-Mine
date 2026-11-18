@@ -8,7 +8,7 @@ import { contextoActual } from '../../src/tenant/contexto';
 import { extenderConTenant } from '../../src/tenant/extension';
 import { limpiarBase, prismaPrueba } from '../db';
 import { crearMembresia, crearOrganizacion, crearUsuario } from '../fabricas';
-import { cabecerasDeSesionReal, cookieDeSesion, ORIGEN_PRUEBA, SECRETO_PRUEBA } from '../sesion-real';
+import { cabecerasDeSesionReal, cookieDeSesion, SECRETO_PRUEBA, SEGURIDAD_PRUEBA } from '../sesion-real';
 
 const sinEscenario = { preparar: async () => ({ tipo: 'COLECCION' as const, ruta: '/api/x', marcador: 'no-aplica' }) };
 
@@ -39,7 +39,7 @@ const app = () =>
   crearApp({
     logger: crearLogger('silent'),
     resolverSesion: crearResolverSesion({ prisma: extenderConTenant(prismaPrueba), secreto: SECRETO_PRUEBA }).resolver,
-    webOrigin: ORIGEN_PRUEBA,
+    seguridad: SEGURIDAD_PRUEBA,
     modulos: [moduloAccesos],
   }).app;
 

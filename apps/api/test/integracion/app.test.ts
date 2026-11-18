@@ -9,7 +9,7 @@ import { crearLogger } from '../../src/logger';
 import { moduloSistema } from '../../src/modulos/sistema';
 import { contextoActual } from '../../src/tenant/contexto';
 import { cabecerasDeSesion, resolverPrueba } from '../sesion-prueba';
-import { ORIGEN_PRUEBA } from '../sesion-real';
+import { SEGURIDAD_PRUEBA } from '../sesion-real';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -59,7 +59,7 @@ function app() {
   return crearApp({
     logger: crearLogger('silent'),
     resolverSesion: resolverPrueba,
-    webOrigin: ORIGEN_PRUEBA,
+    seguridad: SEGURIDAD_PRUEBA,
     modulos: [moduloSistema(), moduloDePrueba],
   }).app;
 }

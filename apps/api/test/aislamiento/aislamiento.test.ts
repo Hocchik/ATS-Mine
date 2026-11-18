@@ -5,7 +5,7 @@ import { crearLogger } from '../../src/logger';
 import { modulosDeLaApp } from '../../src/modulos';
 import { extenderConTenant } from '../../src/tenant/extension';
 import { limpiarBase, prismaPrueba } from '../db';
-import { cabecerasDeSesionReal, ORIGEN_PRUEBA, SECRETO_PRUEBA } from '../sesion-real';
+import { cabecerasDeSesionReal, SECRETO_PRUEBA, SEGURIDAD_PRUEBA } from '../sesion-real';
 import { rutasSinRegistrar } from './rutas-express';
 import { verificarAislamiento } from './verificar';
 
@@ -18,7 +18,7 @@ const appReal = () =>
   crearApp({
     logger: crearLogger('silent'),
     resolverSesion: resolverReal(),
-    webOrigin: ORIGEN_PRUEBA,
+    seguridad: SEGURIDAD_PRUEBA,
     modulos: modulosDeLaApp({ prisma: prismaTenant }),
   });
 
@@ -52,7 +52,7 @@ describe('aislamiento entre empresas (todas las rutas de la app)', () => {
     const { app, registro } = crearApp({
       logger: crearLogger('silent'),
       resolverSesion: resolverReal(),
-      webOrigin: ORIGEN_PRUEBA,
+      seguridad: SEGURIDAD_PRUEBA,
       modulos: [saltada],
     });
     expect(rutasSinRegistrar(app, registro.definiciones)).toEqual(['GET /api/saltada']);

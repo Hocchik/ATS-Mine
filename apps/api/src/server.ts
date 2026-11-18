@@ -21,7 +21,12 @@ const prisma = extenderConTenant(prismaBase);
 const { app } = crearApp({
   logger,
   resolverSesion: sinSesion,
-  webOrigin: config.WEB_ORIGIN,
+  seguridad: {
+    jwtSecret: config.JWT_SECRET,
+    webOrigin: config.WEB_ORIGIN,
+    edgeSecret: config.EDGE_SECRET,
+    cookiesSeguras: config.NODE_ENV === 'production',
+  },
   modulos: modulosDeLaApp({ prisma }),
 });
 

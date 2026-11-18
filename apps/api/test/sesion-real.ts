@@ -55,3 +55,10 @@ export async function cabecerasDeSesionReal(ids: {
     Origin: ORIGEN_PRUEBA,
   };
 }
+
+/** SOLO PRUEBAS. Seguridad de `crearApp`: sin secreto de edge y con cookies no seguras (http local). */
+export const SEGURIDAD_PRUEBA = {
+  jwtSecret: SECRETO_PRUEBA,
+  webOrigin: ORIGEN_PRUEBA,
+  cookiesSeguras: false,
+};

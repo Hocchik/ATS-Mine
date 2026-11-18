@@ -5,7 +5,7 @@ import type { DefinicionRuta } from '../../src/http/registro';
 import { crearLogger } from '../../src/logger';
 import { extenderConTenant } from '../../src/tenant/extension';
 import { limpiarBase, prismaPrueba } from '../db';
-import { cabecerasDeSesionReal, ORIGEN_PRUEBA, SECRETO_PRUEBA } from '../sesion-real';
+import { cabecerasDeSesionReal, SECRETO_PRUEBA, SEGURIDAD_PRUEBA } from '../sesion-real';
 import { verificarAislamiento } from './verificar';
 
 const ok: Parameters<Parameters<Modulo>[0]['registro']['definir']>[2] = (_req, res) => {
@@ -43,7 +43,7 @@ describe('verificarAislamiento con accesos AUTENTICADA y PLATAFORMA', () => {
     const { app, registro } = crearApp({
       logger: crearLogger('silent'),
       resolverSesion: crearResolverSesion({ prisma: extenderConTenant(prismaPrueba), secreto: SECRETO_PRUEBA }).resolver,
-      webOrigin: ORIGEN_PRUEBA,
+      seguridad: SEGURIDAD_PRUEBA,
       modulos: [moduloAccesos],
     });
     const definiciones: DefinicionRuta[] = registro.definiciones.map((d) =>
@@ -68,7 +68,7 @@ describe('verificarAislamiento con accesos AUTENTICADA y PLATAFORMA', () => {
     const { app } = crearApp({
       logger: crearLogger('silent'),
       resolverSesion: async () => null,
-      webOrigin: ORIGEN_PRUEBA,
+      seguridad: SEGURIDAD_PRUEBA,
       modulos: [],
     });
     const resultado = await verificarAislamiento({

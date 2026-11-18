@@ -5,6 +5,7 @@ import { crearApp } from '../../src/app';
 import { sinSesion } from '../../src/http/sesion';
 import { crearLogger } from '../../src/logger';
 import { moduloSistema } from '../../src/modulos/sistema';
+import { SEGURIDAD_PRUEBA } from '../sesion-real';
 
 function capturar() {
   const lineas: string[] = [];
@@ -74,7 +75,7 @@ describe('logs de peticiones HTTP', () => {
     const { app } = crearApp({
       logger: crearLogger('info', destino),
       resolverSesion: sinSesion,
-      webOrigin: 'http://localhost:5173',
+      seguridad: SEGURIDAD_PRUEBA,
       modulos: [moduloSistema()],
     });
     await request(app).get('/health?email=ana@ejemplo.test&q=dato-de-busqueda').set('x-criterio-edge', 'secreto-edge').expect(200);

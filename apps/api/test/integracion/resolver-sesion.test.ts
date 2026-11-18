@@ -8,7 +8,7 @@ import { crearLogger } from '../../src/logger';
 import { extenderConTenant } from '../../src/tenant/extension';
 import { limpiarBase, prismaPrueba } from '../db';
 import { crearMembresia, crearOrganizacion, crearUsuario } from '../fabricas';
-import { contenidoConEmpresa, cookieDeSesion, ORIGEN_PRUEBA, SECRETO_PRUEBA } from '../sesion-real';
+import { contenidoConEmpresa, cookieDeSesion, SECRETO_PRUEBA, SEGURIDAD_PRUEBA } from '../sesion-real';
 
 const prisma = extenderConTenant(prismaPrueba);
 
@@ -17,7 +17,7 @@ function preparar(reloj?: () => number) {
   const { app } = crearApp({
     logger: crearLogger('silent'),
     resolverSesion: resolverSesion.resolver,
-    webOrigin: ORIGEN_PRUEBA,
+    seguridad: SEGURIDAD_PRUEBA,
     modulos: [
       ({ registro, router }) =>
         registro.definir(router, { metodo: 'get', ruta: '/prueba/sesion', acceso: 'PUBLICA' }, async (req, res) => {
