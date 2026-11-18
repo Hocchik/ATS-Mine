@@ -136,14 +136,17 @@ describe('tokenHash con omit global', () => {
     expect(inv).not.toHaveProperty('tokenHash');
   });
 
-  it('invitacion se puede buscar por where: { tokenHash }', async () => {
+  it('invitacion se busca por where: { tokenHash } en modo plataforma (en contexto de empresa se rechaza)', async () => {
     const e = await escenario();
     const creada = await crearInvitacion(e.orgA.id);
     const fila = await prismaPrueba.invitacion.findUniqueOrThrow({ where: { id: creada.id }, omit: { tokenHash: false } });
-    const hallada = await ejecutarEnTenant(e.orgA.id, () =>
+    const hallada = await ejecutarComoPlataforma('aceptar invitación', () =>
       prisma.invitacion.findUnique({ where: { tokenHash: fila.tokenHash } }),
     );
     expect(hallada?.id).toBe(creada.id);
+    await expect(
+      ejecutarEnTenant(e.orgA.id, () => prisma.invitacion.findUnique({ where: { tokenHash: fila.tokenHash } })),
+    ).rejects.toBeInstanceOf(ViolacionMultiempresaError);
   });
 
   it('tokenRestablecer.findMany en plataforma no devuelve tokenHash', async () => {

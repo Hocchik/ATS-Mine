@@ -32,18 +32,31 @@ const IMPORTAR_CLIENTE_CRUDO = {
   message: MENSAJE_CLIENTE_CRUDO,
 };
 const IMPORTAR_PRISMA_CLIENT = { name: '@prisma/client', importNames: ['PrismaClient'], message: MENSAJE_CLIENTE_CRUDO };
-const reglasApi = ({ rutas, clienteCrudo }) => ({
+// Solo la cadena TENANT del registro (correrEnTenant en http/sesion.ts) entra al contexto de una empresa: un handler
+// AUTENTICADA que llamara ejecutarEnTenant con la empresa de la cookie se saltaría exigirEmpresa y exigirRol.
+const IMPORTAR_EJECUTAR_EN_TENANT = {
+  group: ['**/tenant/contexto', '**/tenant/contexto.js', '**/tenant/contexto.ts'],
+  importNames: ['ejecutarEnTenant'],
+  message: 'Solo src/http/sesion.ts entra al contexto de empresa: registra la ruta como TENANT (con roles si hace falta).',
+};
+const reglasApi = ({ rutas, clienteCrudo, contextoEmpresa = false }) => ({
   'no-restricted-syntax': ['error', ...(rutas ? [RUTA_SIN_REGISTRO] : []), ...(clienteCrudo ? NUEVO_PRISMA_CLIENT : [])],
   'no-restricted-imports': [
     'error',
     {
       paths: clienteCrudo ? [IMPORTAR_PRISMA_CLIENT] : [],
-      patterns: [IMPORTAR_PRUEBAS, ...(clienteCrudo ? [IMPORTAR_CLIENTE_CRUDO] : [])],
+      patterns: [
+        IMPORTAR_PRUEBAS,
+        ...(clienteCrudo ? [IMPORTAR_CLIENTE_CRUDO] : []),
+        ...(contextoEmpresa ? [] : [IMPORTAR_EJECUTAR_EN_TENANT]),
+      ],
     },
   ],
 });
 const CREAN_CLIENTE_CRUDO = ['apps/api/src/db/**', 'apps/api/src/server.ts'];
 const REGISTRO = 'apps/api/src/http/registro.ts';
+// Pueden importar ejecutarEnTenant: la cadena TENANT y el propio módulo de aislamiento.
+const ENTRAN_A_EMPRESA = ['apps/api/src/http/sesion.ts', 'apps/api/src/tenant/**'];
 
 export default tseslint.config(
   { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', 'legacy/**', 'services/**'] },
@@ -64,9 +77,10 @@ export default tseslint.config(
   { files: [EXTENSION_TENANT], rules: { 'no-restricted-properties': ['error', ...SQL_CRUDO] } },
   {
     files: ['apps/api/src/**/*.ts'],
-    ignores: [REGISTRO, ...CREAN_CLIENTE_CRUDO],
+    ignores: [REGISTRO, ...CREAN_CLIENTE_CRUDO, ...ENTRAN_A_EMPRESA],
     rules: reglasApi({ rutas: true, clienteCrudo: true }),
   },
+  { files: ENTRAN_A_EMPRESA, rules: reglasApi({ rutas: true, clienteCrudo: true, contextoEmpresa: true }) },
   { files: [REGISTRO], rules: reglasApi({ rutas: false, clienteCrudo: true }) },
   { files: CREAN_CLIENTE_CRUDO, rules: reglasApi({ rutas: true, clienteCrudo: false }) },
 );

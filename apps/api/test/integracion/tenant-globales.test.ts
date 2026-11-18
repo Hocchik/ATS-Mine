@@ -162,7 +162,7 @@ describe('modelos de cuentas', () => {
     },
   } as const;
 
-  describe.each(Object.entries(operaciones))('%s fuera del modo plataforma', (_nombre, ops) => {
+  describe.each(Object.entries(operaciones))('%s fuera del modo plataforma', (nombre, ops) => {
     it.each(['findMany', 'create'] as const)('con contexto de empresa, %s lanza ViolacionMultiempresaError', async (op) => {
       const { orgA, usuario } = await escenario();
       await expect(
@@ -172,9 +172,9 @@ describe('modelos de cuentas', () => {
 
     it.each(['findMany', 'create'] as const)('sin contexto, %s lanza SinContextoTenantError', async (op) => {
       const { orgA, usuario } = await escenario();
-      await expect(op === 'findMany' ? ops.findMany() : ops.create(usuario.id, orgA.id)).rejects.toBeInstanceOf(
-        SinContextoTenantError,
-      );
+      // El create de TokenRestablecer menciona tokenHash: el rechazo de campos secretos va antes que cualquier otra regla.
+      const esperado = nombre === 'TokenRestablecer' && op === 'create' ? ViolacionMultiempresaError : SinContextoTenantError;
+      await expect(op === 'findMany' ? ops.findMany() : ops.create(usuario.id, orgA.id)).rejects.toBeInstanceOf(esperado);
     });
 
     it('en modo plataforma funciona', async () => {

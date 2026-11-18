@@ -3,7 +3,7 @@ import { ejecutarComoPlataforma, ejecutarEnTenant } from '../../src/tenant/conte
 import { extenderConTenant } from '../../src/tenant/extension';
 import { ViolacionMultiempresaError } from '../../src/tenant/relaciones';
 import { limpiarBase, prismaPrueba } from '../db';
-import { crearMembresia, crearOrganizacion, crearUsuario } from '../fabricas';
+import { crearInvitacion, crearMembresia, crearOrganizacion, crearUsuario } from '../fabricas';
 
 const prisma = extenderConTenant(prismaPrueba);
 const HASH = 'no-usar';
@@ -129,5 +129,32 @@ describe('referencias de columna (FieldRef) a passwordHash', () => {
         prisma.membresia.count({ where: { usuario: { nombre: { gt: prisma.usuario.fields.passwordHash } } } } as never),
       ),
     ).rejects.toBeInstanceOf(ViolacionMultiempresaError);
+  });
+});
+
+describe('tokenHash (invitaciones y restablecimientos) fuera del modo plataforma', () => {
+  const casos: [string, (p: typeof prisma) => Promise<unknown>][] = [
+    ['select tokenHash', (p) => p.invitacion.findMany({ select: { tokenHash: true } })],
+    ['omit tokenHash en false', (p) => p.invitacion.findMany({ omit: { tokenHash: false } })],
+    ['where tokenHash startsWith (oráculo)', (p) => p.invitacion.count({ where: { tokenHash: { startsWith: 'a' } } })],
+    ['orderBy tokenHash', (p) => p.invitacion.findMany({ orderBy: { tokenHash: 'asc' } })],
+  ];
+
+  it.each(casos)('%s → ViolacionMultiempresaError', async (_nombre, consulta) => {
+    const { org } = await escenario();
+    await crearInvitacion(org.id);
+    await expect(enEmpresa(org.id, () => consulta(prisma))).rejects.toBeInstanceOf(ViolacionMultiempresaError);
+  });
+
+  it('en modo plataforma se sigue buscando por where: { tokenHash }', async () => {
+    const { org } = await escenario();
+    // El omit global tampoco devuelve el hash al crearla: se fija uno conocido.
+    const invitacion = await crearInvitacion(org.id);
+    await prismaPrueba.invitacion.update({ where: { id: invitacion.id }, data: { tokenHash: 'hash-conocido' } });
+    const fila = await ejecutarComoPlataforma('aceptar invitación', () =>
+      prisma.invitacion.findUnique({ where: { tokenHash: 'hash-conocido' } }),
+    );
+    expect(fila?.id).toBe(invitacion.id);
+    expect(fila).not.toHaveProperty('tokenHash');
   });
 });

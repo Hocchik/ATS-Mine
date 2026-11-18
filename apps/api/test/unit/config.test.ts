@@ -35,8 +35,22 @@ describe('cargarConfig', () => {
     expect(() => cargarConfig({ ...BASE, JWT_SECRET: 'corto' })).toThrow(/JWT_SECRET/);
   });
 
-  it.each(['no-es-url', 'ftp://x.com', 'https://criterio.app/'])('rechaza WEB_ORIGIN %s', (origen) => {
+  it.each([
+    'no-es-url',
+    'ftp://x.com',
+    'https://criterio.app/',
+    'https://Criterio.app',
+    'HTTPS://criterio.app',
+    'https://criterio.app/app',
+    'https://criterio.app?x=1',
+    'https://criterio.app:443',
+    'https://usuario@criterio.app',
+  ])('rechaza WEB_ORIGIN %s (tiene que ser exactamente un origen)', (origen) => {
     expect(() => cargarConfig({ ...BASE, WEB_ORIGIN: origen })).toThrow(/WEB_ORIGIN/);
+  });
+
+  it.each(['https://criterio.app', 'http://localhost:5173', 'https://app.criterio.test:8443'])('acepta WEB_ORIGIN %s', (origen) => {
+    expect(cargarConfig({ ...BASE, WEB_ORIGIN: origen }).WEB_ORIGIN).toBe(origen);
   });
 
   it('en production exige EDGE_SECRET', () => {

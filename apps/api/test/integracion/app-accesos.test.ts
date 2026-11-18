@@ -8,7 +8,7 @@ import { contextoActual } from '../../src/tenant/contexto';
 import { extenderConTenant } from '../../src/tenant/extension';
 import { limpiarBase, prismaPrueba } from '../db';
 import { crearMembresia, crearOrganizacion, crearUsuario } from '../fabricas';
-import { cabecerasDeSesionReal, cookieDeSesion, SECRETO_PRUEBA, SEGURIDAD_PRUEBA } from '../sesion-real';
+import { cabecerasDeSesionReal, cookieDeSesion, ORIGEN_PRUEBA, SECRETO_PRUEBA, SEGURIDAD_PRUEBA } from '../sesion-real';
 
 const sinEscenario = { preparar: async () => ({ tipo: 'COLECCION' as const, ruta: '/api/x', marcador: 'no-aplica' }) };
 
@@ -27,6 +27,11 @@ const moduloAccesos: Modulo = ({ registro, router }) => {
     responder,
   );
   registro.definir(router, { metodo: 'get', ruta: '/api/prueba/plataforma', acceso: 'PLATAFORMA' }, responder);
+  const publica: Parameters<typeof registro.definir>[2] = (_req, res) => {
+    res.json({ ok: true });
+  };
+  registro.definir(router, { metodo: 'post', ruta: '/api/prueba/login', acceso: 'PUBLICA' }, publica);
+  registro.definir(router, { metodo: 'post', ruta: '/public/prueba/postular', acceso: 'PUBLICA' }, publica);
   registro.definir(router, { metodo: 'get', ruta: '/api/prueba/yo-detalle', ...autenticada }, (_req, res) => {
     res.json({ sesion: obtenerSesion(res), empresaActiva: obtenerEmpresaActivaOpcional(res) });
   });
@@ -175,15 +180,27 @@ describe('CSRF de doble envío y Origin', () => {
     esCsrfInvalido(res);
   });
 
-  it('POST con todo correcto → 200, con o sin Origin', async () => {
+  it('POST con todo correcto → 200; sin Origin → 403 CSRF_INVALIDO aunque el token sea correcto', async () => {
     const cabeceras = await sesion();
     expect((await request(app()).post('/api/prueba/yo').set(cabeceras)).status).toBe(200);
     const { Origin: _origen, ...sinOrigen } = cabeceras;
-    expect((await request(app()).post('/api/prueba/yo').set(sinOrigen)).status).toBe(200);
+    esCsrfInvalido(await request(app()).post('/api/prueba/yo').set(sinOrigen));
   });
 
-  it('GET sin CSRF ni Origin → 200', async () => {
+  it('GET sin CSRF ni Origin, o con un Origin ajeno → 200', async () => {
     const { Cookie } = await sesion();
     expect((await request(app()).get('/api/prueba/yo').set({ Cookie: Cookie ?? '' })).status).toBe(200);
+    const ajeno = await request(app()).get('/api/prueba/yo').set({ Cookie: Cookie ?? '', Origin: 'https://malicioso.test' });
+    expect(ajeno.status).toBe(200);
   });
+
+  it.each(['/api/prueba/login', '/public/prueba/postular'])(
+    'PUBLICA %s: un Origin ajeno → 403 CSRF_INVALIDO (CSRF de login); sin Origin o con el propio → 200',
+    async (ruta) => {
+      esCsrfInvalido(await request(app()).post(ruta).set('Origin', 'https://malicioso.test'));
+      esCsrfInvalido(await request(app()).post(ruta).set('Origin', 'null'));
+      expect((await request(app()).post(ruta)).status).toBe(200);
+      expect((await request(app()).post(ruta).set('Origin', ORIGEN_PRUEBA)).status).toBe(200);
+    },
+  );
 });

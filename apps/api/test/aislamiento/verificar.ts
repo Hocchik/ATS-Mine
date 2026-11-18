@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Rol } from '@prisma/client';
 import type { PrismaBase } from '../../src/db/prisma';
 import type { Express } from 'express';
 import request from 'supertest';
@@ -20,7 +21,8 @@ const patronDeRuta = (ruta: string): RegExp =>
       .join('/')}$`,
   );
 
-export type SesionPara = (ids: { usuarioId: string; organizacionId: string }) => Promise<Record<string, string>>;
+/** Cabeceras de sesión (cookie, CSRF, Origin). Sin `organizacionId`, sesión sin empresa; `rol` es el de la membresía. */
+export type SesionPara = (ids: { usuarioId: string; organizacionId?: string; rol?: Rol }) => Promise<Record<string, string>>;
 
 /** Cómo se revisa cada ruta. Falla cerrado: un acceso desconocido se trata como TENANT (exige escenario). */
 function clasificar(def: DefinicionRuta): 'PUBLICA' | 'NO_APLICA' | 'PLATAFORMA' | 'ESCENARIO' {
@@ -38,21 +40,36 @@ function clasificar(def: DefinicionRuta): 'PUBLICA' | 'NO_APLICA' | 'PLATAFORMA'
   }
 }
 
-/** PLATAFORMA: un OWNER de una empresa que no es superadmin, con los `:param` como UUID aleatorios, debe recibir 403 FORBIDDEN. */
+const ROLES_DE_EMPRESA: readonly Rol[] = ['OWNER', 'ADMIN', 'RECLUTADOR'];
+
+/**
+ * PLATAFORMA: un OWNER, un ADMIN y un RECLUTADOR (cada uno en su empresa) y una sesión sin empresa, ninguno superadmin,
+ * con los `:param` como UUID aleatorios: todos deben recibir 403 FORBIDDEN.
+ */
 async function revisarPlataforma(def: DefinicionRuta, opciones: OpcionesVerificar): Promise<string | null> {
-  const org = await crearOrganizacion();
-  const owner = await crearUsuario();
-  await crearMembresia(owner.id, org.id, 'OWNER');
   const ruta = def.ruta
     .split('/')
     .map((seg) => (seg.startsWith(':') ? randomUUID() : seg))
     .join('/');
-  const cabeceras = await opciones.sesionPara({ usuarioId: owner.id, organizacionId: org.id });
-  const res = await request(opciones.app)[def.metodo](ruta).set(cabeceras);
-  // Se exige el código, no solo el 403: un CSRF_INVALIDO también es 403 y ocultaría una ruta sin exigirSuperadmin.
-  const codigo = (res.body as { error?: { code?: string } } | undefined)?.error?.code;
-  if (res.status === 403 && codigo === 'FORBIDDEN') return null;
-  return `esperaba 403 FORBIDDEN para alguien que no es superadmin, recibió ${res.status}${codigo ? ` ${codigo}` : ''}`;
+  const quienes: { nombre: string; rol?: Rol }[] = [...ROLES_DE_EMPRESA.map((rol) => ({ nombre: rol, rol })), { nombre: 'sin empresa' }];
+  for (const { nombre, rol } of quienes) {
+    const usuario = await crearUsuario();
+    let cabeceras: Record<string, string>;
+    if (rol) {
+      const org = await crearOrganizacion();
+      await crearMembresia(usuario.id, org.id, rol);
+      cabeceras = await opciones.sesionPara({ usuarioId: usuario.id, organizacionId: org.id, rol });
+    } else {
+      cabeceras = await opciones.sesionPara({ usuarioId: usuario.id });
+    }
+    const res = await request(opciones.app)[def.metodo](ruta).set(cabeceras);
+    // Se exige el código, no solo el 403: un CSRF_INVALIDO también es 403 y ocultaría una ruta sin exigirSuperadmin.
+    const codigo = (res.body as { error?: { code?: string } } | undefined)?.error?.code;
+    if (res.status !== 403 || codigo !== 'FORBIDDEN') {
+      return `esperaba 403 FORBIDDEN para alguien que no es superadmin (${nombre}), recibió ${res.status}${codigo ? ` ${codigo}` : ''}`;
+    }
+  }
+  return null;
 }
 
 interface OpcionesVerificar {
@@ -85,10 +102,12 @@ export async function verificarAislamiento(
     const escenarioDef = def.aislamiento;
     const duena = await crearOrganizacion();
     const intrusa = await crearOrganizacion();
+    // Con roles, control positivo e intrusa usan el primero: con otro rol recibirían 403 y no probarían nada.
+    const rol: Rol = def.roles?.[0] ?? 'OWNER';
     const persona = await crearUsuario();
-    await crearMembresia(persona.id, intrusa.id, 'OWNER');
+    await crearMembresia(persona.id, intrusa.id, rol);
     const miembroDueno = await crearUsuario();
-    await crearMembresia(miembroDueno.id, duena.id, 'OWNER');
+    await crearMembresia(miembroDueno.id, duena.id, rol);
 
     const contexto = { organizacionId: duena.id, prisma: opciones.prisma };
     const patron = patronDeRuta(def.ruta);
@@ -107,7 +126,7 @@ export async function verificarAislamiento(
       continue;
     }
 
-    const cabecerasDuena = await opciones.sesionPara({ usuarioId: miembroDueno.id, organizacionId: duena.id });
+    const cabecerasDuena = await opciones.sesionPara({ usuarioId: miembroDueno.id, organizacionId: duena.id, rol });
     const control = await envio(escenarioControl, cabecerasDuena);
     if (control.status < 200 || control.status >= 300) {
       fallos.push({ ruta: nombre, motivo: `control positivo: la empresa dueña recibió ${control.status}` });
@@ -124,7 +143,7 @@ export async function verificarAislamiento(
       fallos.push({ ruta: nombre, motivo: 'la ruta del escenario no coincide con la ruta registrada' });
       continue;
     }
-    const cabeceras = await opciones.sesionPara({ usuarioId: persona.id, organizacionId: intrusa.id });
+    const cabeceras = await opciones.sesionPara({ usuarioId: persona.id, organizacionId: intrusa.id, rol });
     const res = await envio(escenario, cabeceras);
 
     if (escenario.tipo === 'RECURSO' && res.status !== 404) {

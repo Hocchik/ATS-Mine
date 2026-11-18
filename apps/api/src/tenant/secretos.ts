@@ -1,7 +1,10 @@
 import { ViolacionMultiempresaError } from './relaciones';
 
-/** Campos que solo se leen, filtran u ordenan en modo plataforma. Hoy solo Usuario.passwordHash. */
-export const CAMPOS_SECRETOS: readonly string[] = ['passwordHash'];
+/**
+ * Campos que solo se leen, filtran u ordenan en modo plataforma: Usuario.passwordHash y el tokenHash de Invitacion y
+ * TokenRestablecer (fuera de plataforma, un `where: { tokenHash: { startsWith } }` sería un oráculo del hash).
+ */
+export const CAMPOS_SECRETOS: readonly string[] = ['passwordHash', 'tokenHash'];
 
 /** Claves cuyo valor nombra campos como texto (`by: ['passwordHash']`, `distinct: 'passwordHash'`). */
 const CLAVES_QUE_NOMBRAN_CAMPOS = new Set(['by', 'distinct']);

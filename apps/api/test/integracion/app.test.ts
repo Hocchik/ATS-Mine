@@ -9,7 +9,7 @@ import { crearLogger } from '../../src/logger';
 import { moduloSistema } from '../../src/modulos/sistema';
 import { contextoActual } from '../../src/tenant/contexto';
 import { cabecerasDeSesion, resolverPrueba } from '../sesion-prueba';
-import { SEGURIDAD_PRUEBA } from '../sesion-real';
+import { ORIGEN_PRUEBA, SEGURIDAD_PRUEBA } from '../sesion-real';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -127,7 +127,7 @@ describe('crearApp', () => {
     const res = await request(app())
       .post('/api/prueba/contexto-cuerpo')
       .set(cabecerasDeSesion({ usuarioId: randomUUID(), organizacionId: org }))
-      .set({ Cookie: 'criterio_csrf=token-csrf', 'X-CSRF-Token': 'token-csrf' })
+      .set({ Cookie: 'criterio_csrf=token-csrf', 'X-CSRF-Token': 'token-csrf', Origin: ORIGEN_PRUEBA })
       .send({ titulo: 'hola' });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ contexto: { modo: 'tenant', organizacionId: org }, cuerpo: { titulo: 'hola' } });

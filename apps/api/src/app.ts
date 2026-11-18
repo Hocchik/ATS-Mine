@@ -4,6 +4,7 @@ import express, { Router } from 'express';
 import helmet from 'helmet';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
+import { verificarOrigen } from './http/csrf';
 import { exigirEdge } from './http/edge';
 import { manejadorErrores, rutaNoEncontrada } from './http/manejador-errores';
 import { crearRegistro, type RegistroRutas } from './http/registro';
@@ -49,6 +50,8 @@ export function crearApp({ logger, resolverSesion, seguridad, modulos }: Depende
   app.use(cookieParser());
 
   app.use('/api', exigirEdge(seguridad.edgeSecret));
+  // Antes del router y para toda ruta: un Origin ajeno en POST/PUT/PATCH/DELETE se rechaza también en las públicas.
+  app.use(verificarOrigen(seguridad.webOrigin));
 
   const registro = crearRegistro({ resolverSesion, webOrigin: seguridad.webOrigin });
   const router = Router();

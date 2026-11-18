@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { Rol } from '@prisma/client';
 import { COOKIE_CSRF, COOKIE_SESION } from '../src/auth/cookies';
 import { firmarSesion, type ContenidoSesion } from '../src/auth/jwt';
 import { prismaPrueba } from './db';
@@ -33,11 +34,13 @@ export function contenidoConEmpresa(
 
 /**
  * Cabeceras de una sesión real (cookie firmada con SECRETO_PRUEBA) más el CSRF de doble envío y `Origin`.
- * Con `organizacionId`, usa la membresía existente o crea una OWNER si no hay.
+ * Con `organizacionId`, usa la membresía existente o crea una con `rol` (OWNER por defecto) si no hay; si existe con
+ * otro rol que el pedido, lanza (la prueba estaría probando otra cosa).
  */
 export async function cabecerasDeSesionReal(ids: {
   usuarioId: string;
-  organizacionId?: string;
+  organizacionId?: string | undefined;
+  rol?: Rol | undefined;
 }): Promise<Record<string, string>> {
   const usuario = await prismaPrueba.usuario.findUniqueOrThrow({ where: { id: ids.usuarioId } });
   let contenido: ContenidoSesion = { usuarioId: usuario.id, versionSesion: usuario.versionSesion };
@@ -45,7 +48,10 @@ export async function cabecerasDeSesionReal(ids: {
     const existente = await prismaPrueba.membresia.findUnique({
       where: { usuarioId_organizacionId: { usuarioId: usuario.id, organizacionId: ids.organizacionId } },
     });
-    const membresia = existente ?? (await crearMembresia(usuario.id, ids.organizacionId, 'OWNER'));
+    if (existente && ids.rol && existente.rol !== ids.rol) {
+      throw new Error(`La membresía existente es ${existente.rol}, no ${ids.rol}`);
+    }
+    const membresia = existente ?? (await crearMembresia(usuario.id, ids.organizacionId, ids.rol ?? 'OWNER'));
     contenido = contenidoConEmpresa(usuario, membresia);
   }
   const csrf = randomBytes(32).toString('base64url');

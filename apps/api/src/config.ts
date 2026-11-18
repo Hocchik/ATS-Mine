@@ -10,7 +10,9 @@ const esquemaBase = z.object({
     .string()
     .url()
     .refine((v) => /^https?:\/\//.test(v), 'Debe ser http(s)')
-    .refine((v) => !v.endsWith('/'), 'No debe terminar en /'),
+    .refine((v) => !v.endsWith('/'), 'No debe terminar en /')
+    // Se compara tal cual con la cabecera Origin: tiene que ser exactamente un origen (sin ruta, minúsculas, sin puerto por defecto).
+    .refine((v) => URL.canParse(v) && new URL(v).origin === v, 'Debe ser exactamente un origen, p. ej. https://criterio.app'),
   EDGE_SECRET: z.string().min(32).optional(),
 });
 
