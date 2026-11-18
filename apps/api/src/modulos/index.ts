@@ -2,6 +2,7 @@ import type { Modulo, Seguridad } from '../app';
 import type { SesionesApp } from '../auth/resolver-sesion';
 import type { PrismaTenant } from '../tenant/extension';
 import { moduloAuth } from './auth';
+import { moduloInvitaciones } from './invitaciones';
 import { moduloOrganizaciones } from './organizaciones';
 import { moduloSistema } from './sistema';
 
@@ -16,5 +17,5 @@ export interface DependenciasModulos {
 
 /** Única lista de módulos: la usan server.ts y la suite de aislamiento. Todo módulo nuevo se agrega aquí. */
 export function modulosDeLaApp(deps: DependenciasModulos): Modulo[] {
-  return [moduloSistema(), moduloAuth(deps), moduloOrganizaciones(deps)];
+  return [moduloSistema(), moduloAuth(deps), moduloOrganizaciones(deps), moduloInvitaciones(deps)];
 }
