@@ -51,7 +51,7 @@ describe('crearRegistro', () => {
 
   it.each<Acceso>(['PUBLICA', 'AUTENTICADA', 'PLATAFORMA'])('rechaza roles en una ruta %s', (acceso) => {
     const registro = nuevoRegistro();
-    const def: DefinicionRuta = { metodo: 'get', ruta: '/x', acceso, roles: ['OWNER'], aislamiento: { noAplica: 'x' } };
+    const def: DefinicionRuta = { metodo: 'get', ruta: '/api/x', acceso, roles: ['OWNER'], aislamiento: { noAplica: 'x' } };
     expect(() => registro.definir(Router(), def, () => {})).toThrow(/roles/);
     expect(registro.definiciones).toEqual([]);
   });
@@ -64,7 +64,7 @@ describe('crearRegistro', () => {
 
   it.each<Acceso>(['PUBLICA', 'PLATAFORMA'])('rechaza aislamiento declarado en una ruta %s', (acceso) => {
     const registro = nuevoRegistro();
-    const def: DefinicionRuta = { metodo: 'get', ruta: '/x', acceso, aislamiento: { noAplica: 'x' } };
+    const def: DefinicionRuta = { metodo: 'get', ruta: '/api/x', acceso, aislamiento: { noAplica: 'x' } };
     expect(() => registro.definir(Router(), def, () => {})).toThrow(/aislamiento/);
   });
 
@@ -78,5 +78,78 @@ describe('crearRegistro', () => {
       'PLATAFORMA /api/admin',
       'TENANT /api/x',
     ]);
+  });
+
+  describe('rutas duplicadas o sombreadas', () => {
+    const publica = (ruta: string, metodo: DefinicionRuta['metodo'] = 'get'): DefinicionRuta => ({ metodo, ruta, acceso: 'PUBLICA' });
+
+    it.each([
+      ['solo cambia mayúsculas', '/api/p/Dup', '/api/p/dup'],
+      ['barra final', '/api/p/dup', '/api/p/dup/'],
+      ['nombre del parámetro', '/api/vacantes/:id', '/api/vacantes/:vacanteId'],
+      ['mayúsculas, barra y parámetro', '/api/Vacantes/:id/', '/api/vacantes/:otro'],
+    ])('lanza al registrar la misma ruta dos veces (%s)', (_caso, primera, segunda) => {
+      const registro = nuevoRegistro();
+      const router = Router();
+      registro.definir(router, publica(primera), () => {});
+      expect(() =>
+        registro.definir(router, { metodo: 'get', ruta: segunda, acceso: 'TENANT', aislamiento: escenario }, () => {}),
+      ).toThrow(/duplicada/);
+      expect(registro.definiciones).toHaveLength(1);
+      expect(router.stack).toHaveLength(1);
+    });
+
+    it('la misma ruta con otro método no es duplicada; la raíz conserva su barra', () => {
+      const registro = nuevoRegistro();
+      registro.definir(Router(), publica('/api/x'), () => {});
+      registro.definir(Router(), publica('/api/x', 'post'), () => {});
+      registro.definir(Router(), publica('/'), () => {});
+      registro.definir(Router(), publica('/api/x/:id'), () => {});
+      expect(registro.definiciones).toHaveLength(4);
+    });
+  });
+
+  it.each<[Acceso, string]>([
+    ['TENANT', '/public/p/tenant'],
+    ['AUTENTICADA', '/vacantes'],
+    ['PLATAFORMA', '/admin/organizaciones'],
+    ['TENANT', '/apix/vacantes'],
+    ['AUTENTICADA', '/api'],
+  ])('una ruta %s fuera de /api/ lanza (%s)', (acceso, ruta) => {
+    const registro = nuevoRegistro();
+    const def: DefinicionRuta =
+      acceso === 'PLATAFORMA' ? { metodo: 'post', ruta, acceso } : { metodo: 'post', ruta, acceso, aislamiento: escenario };
+    expect(() => registro.definir(Router(), def, () => {})).toThrow(/\/api\//);
+    expect(registro.definiciones).toEqual([]);
+  });
+
+  it('una ruta PUBLICA puede vivir en /api/ o fuera de ella', () => {
+    const registro = nuevoRegistro();
+    registro.definir(Router(), { metodo: 'post', ruta: '/api/auth/login', acceso: 'PUBLICA' }, () => {});
+    registro.definir(Router(), { metodo: 'post', ruta: '/public/postular/:slug', acceso: 'PUBLICA' }, () => {});
+    expect(registro.definiciones).toHaveLength(2);
+  });
+
+  it.each<[string, unknown]>([
+    ['objeto vacío', {}],
+    ['preparar que no es función', { preparar: 'no' }],
+  ])('TENANT y AUTENTICADA rechazan un escenario sin preparar (%s)', (_caso, aislamiento) => {
+    for (const acceso of ['TENANT', 'AUTENTICADA'] as const) {
+      const registro = nuevoRegistro();
+      const def = { metodo: 'get', ruta: '/api/x', acceso, aislamiento } as unknown as DefinicionRuta;
+      expect(() => registro.definir(Router(), def, () => {})).toThrow(/preparar/);
+      expect(registro.definiciones).toEqual([]);
+    }
+  });
+
+  it.each<[string, unknown]>([
+    ['número', 123],
+    ['null', null],
+    ['vacío', ''],
+  ])('noAplica tiene que ser un motivo de texto (%s)', (_caso, noAplica) => {
+    const registro = nuevoRegistro();
+    const def = { metodo: 'get', ruta: '/api/yo', acceso: 'AUTENTICADA', aislamiento: { noAplica } } as unknown as DefinicionRuta;
+    expect(() => registro.definir(Router(), def, () => {})).toThrow(/motivo/);
+    expect(registro.definiciones).toEqual([]);
   });
 });

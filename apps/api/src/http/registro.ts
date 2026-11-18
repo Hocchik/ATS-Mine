@@ -34,6 +34,31 @@ export type Aislamiento = EscenarioAislamiento | { noAplica: string };
 
 export const esNoAplica = (a: Aislamiento): a is { noAplica: string } => 'noAplica' in a;
 
+/**
+ * Clave con la que Express compara rutas (por defecto sin distinguir mayúsculas ni barra final): dos definiciones
+ * con la misma clave se sombrean, y la segunda nunca corre. Los `:param` valen lo mismo con cualquier nombre.
+ */
+export function normalizarRuta(ruta: string): string {
+  const minus = ruta.toLowerCase();
+  const sinBarra = minus.length > 1 && minus.endsWith('/') ? minus.slice(0, -1) : minus;
+  return sinBarra
+    .split('/')
+    .map((seg) => (seg.startsWith(':') ? ':p' : seg))
+    .join('/');
+}
+
+export const claveDeRuta = (metodo: string, ruta: string): string => `${metodo.toUpperCase()} ${normalizarRuta(ruta)}`;
+
+/** Motivo por el que el aislamiento declarado no sirve, o null. */
+function problemaDeAislamiento(a: Aislamiento): string | null {
+  if (esNoAplica(a)) {
+    return typeof a.noAplica === 'string' && a.noAplica.trim() ? null : 'declara noAplica sin motivo';
+  }
+  return typeof (a as Partial<EscenarioAislamiento>).preparar === 'function'
+    ? null
+    : 'declara un escenario de aislamiento sin función preparar';
+}
+
 export interface DefinicionRuta {
   metodo: Metodo;
   /** Ruta completa, p. ej. `/api/vacantes/:id`. */
@@ -52,6 +77,7 @@ export interface RegistroRutas {
 
 export function crearRegistro({ resolverSesion, webOrigin }: { resolverSesion: ResolverSesion; webOrigin: string }): RegistroRutas {
   const definiciones: DefinicionRuta[] = [];
+  const claves = new Set<string>();
   const autenticado = exigirAutenticado(resolverSesion);
   const csrf = verificarCsrf(webOrigin);
   return {
@@ -62,9 +88,13 @@ export function crearRegistro({ resolverSesion, webOrigin }: { resolverSesion: R
         throw new Error(`La ruta ${def.acceso} ${nombre} ${motivo}`);
       };
       if (def.roles !== undefined && def.acceso !== 'TENANT') falla('declara roles: solo las rutas TENANT los usan');
-      if (def.aislamiento && esNoAplica(def.aislamiento) && !def.aislamiento.noAplica.trim()) {
-        falla('declara noAplica sin motivo');
+      if (def.acceso !== 'PUBLICA' && !def.ruta.startsWith('/api/')) {
+        falla('no está bajo /api/: solo ahí pasa por el edge y la cookie queda en el mismo sitio que la web');
       }
+      const problema = def.aislamiento ? problemaDeAislamiento(def.aislamiento) : null;
+      if (problema) falla(problema);
+      const clave = claveDeRuta(def.metodo, def.ruta);
+      if (claves.has(clave)) falla(`está duplicada (${clave}): Express solo ejecutaría la primera`);
 
       let cadena: RequestHandler[];
       // switch exhaustivo: un valor nuevo de Acceso sin manejar rompe la compilación (y en tiempo de ejecución, lanza).
@@ -91,6 +121,7 @@ export function crearRegistro({ resolverSesion, webOrigin }: { resolverSesion: R
           throw new Error(`Acceso desconocido ${String(_exhaustivo)} en la ruta ${nombre}`);
         }
       }
+      claves.add(clave);
       definiciones.push(def);
       router[def.metodo](def.ruta, ...cadena);
     },
