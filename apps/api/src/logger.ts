@@ -36,11 +36,14 @@ interface PeticionSerializada {
  * Serializador de `req` para pino-http: la url va sin query string (ahí suelen viajar emails o búsquedas) y no se
  * registran `query` ni `params`. Las cabeceras pasan por el `redact` del logger.
  */
+/** Segmentos de ruta con forma de token (32 bytes en base64url = 43 caracteres): invitaciones, restablecer. */
+const SEGMENTO_TOKEN = /\/[A-Za-z0-9_-]{43}(?=\/|$)/g;
+
 export function serializarPeticion(req: PeticionSerializada): PeticionSerializada {
   return {
     id: req.id,
     method: req.method,
-    url: req.url?.split('?')[0],
+    url: req.url?.split('?')[0]?.replace(SEGMENTO_TOKEN, '/[oculto]'),
     headers: req.headers,
     remoteAddress: req.remoteAddress,
     remotePort: req.remotePort,

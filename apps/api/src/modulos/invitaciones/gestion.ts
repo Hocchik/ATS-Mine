@@ -61,7 +61,11 @@ export function rutasGestionInvitaciones({ prisma, seguridad }: DependenciasModu
         const datos = crearInvitacionSchema.parse(req.body);
         // El rol de quien invita se lee de la base (contexto de empresa), no solo del token.
         const actor = await prisma.membresia.findUnique({ where: { id: sesion.membresiaId }, select: { rol: true } });
-        if (datos.rol === 'OWNER' && actor?.rol !== 'OWNER') throw new AppError('FORBIDDEN', SOLO_OWNER);
+        // El rol se relee de la base: la sesión en caché puede tener hasta 60 s de antigüedad.
+        if (!actor || !(ROLES_GESTION as readonly string[]).includes(actor.rol)) {
+          throw new AppError('FORBIDDEN', 'No tienes permiso para invitar en esta empresa');
+        }
+        if (datos.rol === 'OWNER' && actor.rol !== 'OWNER') throw new AppError('FORBIDDEN', SOLO_OWNER);
         // En contexto de empresa, Usuario solo ve a los miembros de esta empresa: si aparece, ya es miembro.
         const miembro = await prisma.usuario.findFirst({ where: { email: datos.email }, select: { id: true } });
         if (miembro) throw new AppError('DUPLICATE', YA_MIEMBRO);

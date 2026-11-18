@@ -24,6 +24,11 @@ const esDuplicado = (err: unknown) => err instanceof Prisma.PrismaClientKnownReq
  */
 export function rutasAceptarInvitacion({ prisma, seguridad }: DependenciasModulos): Modulo {
   const limitePorIp = crearLimitador({ ventanaMs: QUINCE_MINUTOS, maximo: 30 });
+  const limitePorPersona = crearLimitador({
+    ventanaMs: QUINCE_MINUTOS,
+    maximo: 30,
+    clave: (_req, res) => `invitaciones.aceptar:${obtenerSesion(res).usuarioId}`,
+  });
 
   return ({ registro, router }) => {
     registro.definir(
@@ -48,6 +53,7 @@ export function rutasAceptarInvitacion({ prisma, seguridad }: DependenciasModulo
             'solo une a la propia persona a la empresa del token, si su email coincide; no lee ni expone otras empresas',
         },
       },
+      limitePorPersona,
       async (req, res) => {
         const { usuarioId } = obtenerSesion(res);
         const token = tokenDeParams(req.params);
@@ -74,6 +80,17 @@ export function rutasAceptarInvitacion({ prisma, seguridad }: DependenciasModulo
               const membresia = await tx.membresia.create({
                 data: { organizacionId: invitacion.organizacionId, usuarioId, rol: invitacion.rol },
                 select: { id: true, version: true },
+              });
+              // Las demás pendientes para el mismo email en esta empresa ya no sirven (aceptarlas daría 409).
+              await tx.invitacion.updateMany({
+                where: {
+                  organizacionId: invitacion.organizacionId,
+                  email: invitacion.email,
+                  aceptadaEn: null,
+                  revocadaEn: null,
+                  NOT: { id: invitacion.id },
+                },
+                data: { revocadaEn: new Date() },
               });
               return { invitacion, membresia };
             });

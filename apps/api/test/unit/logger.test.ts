@@ -85,4 +85,21 @@ describe('logs de peticiones HTTP', () => {
     expect(salida).not.toContain('dato-de-busqueda');
     expect(salida).not.toContain('secreto-edge');
   });
+
+  it('ocultan los tokens que viajan en la ruta (invitaciones, restablecer)', async () => {
+    const { lineas, destino } = capturar();
+    const { app } = crearApp({
+      logger: crearLogger('info', destino),
+      resolverSesion: sinSesion,
+      seguridad: SEGURIDAD_PRUEBA,
+      modulos: [moduloSistema()],
+    });
+    const token = 'Abc_def-GHI'.repeat(4).slice(0, 43);
+    await request(app).get(`/public/invitaciones/${token}`);
+    await request(app).post(`/api/invitaciones/${token}/aceptar`);
+    const salida = lineas.join('');
+    expect(salida).not.toContain(token);
+    expect(salida).toContain('/public/invitaciones/[oculto]');
+    expect(salida).toContain('/api/invitaciones/[oculto]/aceptar');
+  });
 });
