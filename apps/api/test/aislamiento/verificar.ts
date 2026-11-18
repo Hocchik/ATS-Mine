@@ -113,7 +113,8 @@ export async function verificarAislamiento(
     const patron = patronDeRuta(def.ruta);
     const envio = async (escenario: Escenario, cabeceras: Record<string, string>) => {
       let peticion = request(opciones.app)[def.metodo](escenario.ruta).set(cabeceras);
-      if (escenario.tipo === 'RECURSO' && escenario.cuerpo !== undefined) {
+      // Un PUT a una colección (p. ej. la empresa propia) también necesita un cuerpo válido.
+      if (escenario.cuerpo !== undefined) {
         peticion = peticion.send(escenario.cuerpo as object);
       }
       return peticion;

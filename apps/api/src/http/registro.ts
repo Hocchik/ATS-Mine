@@ -22,7 +22,7 @@ export type Metodo = 'get' | 'post' | 'put' | 'patch' | 'delete';
 
 export type ResultadoEscenario =
   | { tipo: 'RECURSO'; ruta: string; cuerpo?: unknown }
-  | { tipo: 'COLECCION'; ruta: string; marcador: string };
+  | { tipo: 'COLECCION'; ruta: string; marcador: string; cuerpo?: unknown };
 
 export interface EscenarioAislamiento {
   /** Crea en la empresa `organizacionId` lo que la ruta expone y devuelve la petición a probar desde otra empresa. */

@@ -1,13 +1,12 @@
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Modulo } from '../../app';
-import { COOKIE_SESION, limpiarSesion } from '../../auth/cookies';
-import { verificarSesion } from '../../auth/jwt';
+import { limpiarSesion } from '../../auth/cookies';
 import { AppError } from '../../http/errores';
 import { obtenerEmpresaActivaOpcional, obtenerSesion } from '../../http/sesion';
 import { ejecutarComoPlataforma } from '../../tenant/contexto';
 import type { DependenciasModulos } from '..';
-import { emitirSesionFirmada, type EmpresaActivaRespuesta } from './comun';
+import { emitirSesionFirmada, versionSesionVigente, type EmpresaActivaRespuesta } from './comun';
 
 const cambiarEmpresaSchema = z.object({ organizacionId: z.uuid() });
 
@@ -18,21 +17,8 @@ const NO_ENCONTRADA = 'No encontrado';
 const DATOS_PROPIOS = 'solo lee o cambia la sesión y las membresías de la propia persona (filtradas por su usuarioId)';
 
 export function rutasSesion({ prisma, seguridad }: DependenciasModulos): Modulo {
-  /**
-   * `versionSesion` del token de la cookie (el resolver ya lo validó, quizá desde su caché). Se reutiliza al volver a
-   * firmar, y se exige igual al de la base: un token invalidado nunca obtiene uno nuevo con la versión vigente.
-   */
-  async function versionVigente(req: Request, usuarioId: string): Promise<number> {
-    const token: unknown = req.cookies?.[COOKIE_SESION];
-    const contenido = typeof token === 'string' ? await verificarSesion(token, seguridad.jwtSecret) : null;
-    const usuario = await ejecutarComoPlataforma('auth.cambiar-empresa', () =>
-      prisma.usuario.findUnique({ where: { id: usuarioId }, select: { versionSesion: true } }),
-    );
-    if (!contenido || contenido.usuarioId !== usuarioId || usuario?.versionSesion !== contenido.versionSesion) {
-      throw new AppError('UNAUTHENTICATED', NO_AUTENTICADO);
-    }
-    return contenido.versionSesion;
-  }
+  const versionVigente = (req: Request, usuarioId: string) =>
+    versionSesionVigente(req, { prisma, seguridad, motivo: 'auth.cambiar-empresa' }, usuarioId);
 
   return ({ registro, router }) => {
     const def = { acceso: 'AUTENTICADA', aislamiento: { noAplica: DATOS_PROPIOS } } as const;
