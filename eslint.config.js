@@ -39,8 +39,24 @@ const IMPORTAR_EJECUTAR_EN_TENANT = {
   importNames: ['ejecutarEnTenant'],
   message: 'Solo src/http/sesion.ts entra al contexto de empresa: registra la ruta como TENANT (con roles si hace falta).',
 };
+// `no-restricted-imports` no ve `import()` dinámico ni `require`: se bloquean aparte.
+const CONTEXTO_DINAMICO = [
+  {
+    selector: "ImportExpression[source.value=/tenant\\/contexto/]",
+    message: IMPORTAR_EJECUTAR_EN_TENANT.message,
+  },
+  {
+    selector: "CallExpression[callee.name='require'][arguments.0.value=/tenant\\/contexto/]",
+    message: IMPORTAR_EJECUTAR_EN_TENANT.message,
+  },
+];
 const reglasApi = ({ rutas, clienteCrudo, contextoEmpresa = false }) => ({
-  'no-restricted-syntax': ['error', ...(rutas ? [RUTA_SIN_REGISTRO] : []), ...(clienteCrudo ? NUEVO_PRISMA_CLIENT : [])],
+  'no-restricted-syntax': [
+    'error',
+    ...(rutas ? [RUTA_SIN_REGISTRO] : []),
+    ...(clienteCrudo ? NUEVO_PRISMA_CLIENT : []),
+    ...(contextoEmpresa ? [] : CONTEXTO_DINAMICO),
+  ],
   'no-restricted-imports': [
     'error',
     {

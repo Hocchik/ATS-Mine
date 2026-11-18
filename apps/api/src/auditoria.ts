@@ -6,7 +6,8 @@ import type { PrismaTenant } from './tenant/extension';
  * Patrón, no lista exacta: también atrapa variantes (`correo`, `emailUsuario`, `dniCandidato`…). Ante la duda se
  * rechaza; es un error de programación que debe verse.
  */
-const CLAVE_PERSONAL = /mail|correo|tel[eé]fono|celular|m[oó]vil|documento|dni|nombre|contras|clave|pass|token|hash/i;
+const CLAVE_PERSONAL =
+  /mail|correo|tel[eé]fono|phone|celular|m[oó]vil|documento|dni|nombre|apellido|direcci|address|curr[ií]cul|^cv|contras|clave|pass|token|hash/i;
 const MAX_TEXTO = 200;
 const MAX_CLAVE = 64;
 const MAX_IP = 64;

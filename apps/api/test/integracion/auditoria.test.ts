@@ -44,7 +44,21 @@ describe('auditar', () => {
     },
   );
 
-  it.each(['correo', 'emailUsuario', 'e-mail', 'dniCandidato', 'celular', 'nombreCompleto', 'claveTemporal'])(
+  it.each([
+    'correo',
+    'emailUsuario',
+    'e-mail',
+    'dniCandidato',
+    'celular',
+    'nombreCompleto',
+    'claveTemporal',
+    'phone',
+    'apellidos',
+    'direccion',
+    'address',
+    'curriculum',
+    'cvTexto',
+  ])(
     'rechaza variantes de claves personales: %s',
     async (clave) => {
       await expect(auditar(prisma, { tipo: 'LOGIN', datos: { [clave]: 'x' } })).rejects.toThrow(/datos personales/);

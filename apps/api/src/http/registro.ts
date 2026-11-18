@@ -39,12 +39,11 @@ export const esNoAplica = (a: Aislamiento): a is { noAplica: string } => 'noApli
  * con la misma clave se sombrean, y la segunda nunca corre. Los `:param` valen lo mismo con cualquier nombre.
  */
 export function normalizarRuta(ruta: string): string {
-  const minus = ruta.toLowerCase();
+  // Express 5 colapsa `//`, ignora mayúsculas y la barra final; parámetros (`:a`, `foo-:a`, `{:a}`) y comodines
+  // (`*s`) de nombre distinto coinciden con las mismas URLs, así que todos se reducen a `:p`.
+  const minus = ruta.toLowerCase().replace(/\/{2,}/g, '/');
   const sinBarra = minus.length > 1 && minus.endsWith('/') ? minus.slice(0, -1) : minus;
-  return sinBarra
-    .split('/')
-    .map((seg) => (seg.startsWith(':') ? ':p' : seg))
-    .join('/');
+  return sinBarra.replace(/[:*][A-Za-z_$][\w$]*/g, ':p');
 }
 
 export const claveDeRuta = (metodo: string, ruta: string): string => `${metodo.toUpperCase()} ${normalizarRuta(ruta)}`;
