@@ -38,20 +38,29 @@ export interface DependenciasResolver {
 export function crearResolverSesion({ prisma, secreto, reloj = Date.now, ttlMs = TTL_POR_DEFECTO_MS }: DependenciasResolver) {
   const usuarios = new CacheTTL<string, DatosUsuario>(ttlMs, reloj);
   const membresias = new CacheTTL<string, DatosMembresia>(ttlMs, reloj);
+  // Contador de generación por clave: `invalidar*` lo incrementa; una lectura que empezó antes de una
+  // invalidación no puede guardar su resultado (sería la fila previa al cambio con un TTL nuevo).
+  // Solo crece por usuario/membresía invalidados (acotado por esos conjuntos; se acepta sin barrido).
+  const generacionUsuarios = new Map<string, number>();
+  const generacionMembresias = new Map<string, number>();
+  const generacion = (m: Map<string, number>, id: string) => m.get(id) ?? 0;
+  const invalidar = (m: Map<string, number>, id: string) => m.set(id, generacion(m, id) + 1);
 
   async function datosUsuario(id: string): Promise<DatosUsuario | null> {
     const enCache = usuarios.obtener(id);
     if (enCache) return enCache;
+    const gen = generacion(generacionUsuarios, id);
     const fila = await ejecutarComoPlataforma(MOTIVO, () =>
       prisma.usuario.findUnique({ where: { id }, select: { versionSesion: true, esSuperadmin: true } }),
     );
-    if (fila) usuarios.guardar(id, fila);
+    if (fila && gen === generacion(generacionUsuarios, id)) usuarios.guardar(id, fila);
     return fila;
   }
 
   async function datosMembresia(id: string): Promise<DatosMembresia | null> {
     const enCache = membresias.obtener(id);
     if (enCache) return enCache;
+    const gen = generacion(generacionMembresias, id);
     const fila = await ejecutarComoPlataforma(MOTIVO, () =>
       prisma.membresia.findUnique({
         where: { id },
@@ -67,7 +76,7 @@ export function crearResolverSesion({ prisma, secreto, reloj = Date.now, ttlMs =
     if (!fila) return null;
     const { organizacion, ...resto } = fila;
     const datos: DatosMembresia = { ...resto, estadoOrganizacion: organizacion.estadoVerificacion };
-    membresias.guardar(id, datos);
+    if (gen === generacion(generacionMembresias, id)) membresias.guardar(id, datos);
     return datos;
   }
 
@@ -102,7 +111,18 @@ export function crearResolverSesion({ prisma, secreto, reloj = Date.now, ttlMs =
 
   return {
     resolver,
-    invalidarUsuario: (usuarioId: string) => usuarios.borrar(usuarioId),
-    invalidarMembresia: (membresiaId: string) => membresias.borrar(membresiaId),
+    /**
+     * Descarta la caché del usuario y las lecturas en curso. Llamar DESPUÉS de que la transacción
+     * haya confirmado (commit): invalidar dentro de ella deja que otra petición re-cachee la fila previa.
+     */
+    invalidarUsuario: (usuarioId: string) => {
+      invalidar(generacionUsuarios, usuarioId);
+      usuarios.borrar(usuarioId);
+    },
+    /** Igual que `invalidarUsuario`, para la membresía: llamar DESPUÉS del commit de la transacción. */
+    invalidarMembresia: (membresiaId: string) => {
+      invalidar(generacionMembresias, membresiaId);
+      membresias.borrar(membresiaId);
+    },
   };
 }
