@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: glonis-ats-api
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build && npm run db:deploy
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # PostgreSQL vive en Neon (la base free de Render expiró el 2026-06).
+      # El connection string se configura en el dashboard de Render, nunca en el repo.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: HCAPTCHA_SECRET
+        sync: false
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: FRONTEND_URL
+        sync: false

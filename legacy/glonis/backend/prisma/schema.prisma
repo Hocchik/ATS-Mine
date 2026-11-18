@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id           String    @id @default(uuid())
+  nombre       String
+  email        String    @unique
+  passwordHash String
+  rol          Rol       @default(RECLUTADOR)
+  creadoEn     DateTime  @default(now())
+  vacantes     Vacante[]
+}
+
+enum Rol {
+  ADMIN
+  RECLUTADOR
+}
+
+model Vacante {
+  id             String         @id @default(uuid())
+  titulo         String
+  puesto         PuestoTipo
+  descripcion    String
+  requisitos     String
+  tipoContrato   String
+  turnoPreferido TurnoPreferido @default(AMBOS)
+  estado         EstadoVacante  @default(ACTIVA)
+  slug           String         @unique
+  fechaCierre    DateTime?
+  creadoEn       DateTime       @default(now())
+  creadoPor      Usuario        @relation(fields: [usuarioId], references: [id])
+  usuarioId      String
+  postulaciones  Postulacion[]
+}
+
+enum PuestoTipo {
+  GERENTE_TIENDA
+  ASESOR_VENTAS
+  COORDINADOR_COMPRAS
+  JEFE_ALMACEN
+  COMMUNITY_MANAGER
+  PRACTICANTE_MARKETING
+  ANALISTA_RRHH
+  CONTADOR
+  PRACTICANTE_CONTABILIDAD
+  OPERADOR_SERVICIO_CLIENTE
+  AUXILIAR_TIENDA
+  AGENTE_SEGURIDAD_TIENDA
+  SUPERVISOR_SEGURIDAD
+  AGENTE_SEGURIDAD_ALMACEN
+}
+
+enum TurnoPreferido {
+  MANANA
+  TARDE
+  AMBOS
+}
+
+enum ModalidadTrabajo {
+  FULLTIME
+  PARTTIME
+}
+
+enum EstadoVacante {
+  ACTIVA
+  PAUSADA
+  CERRADA
+}
+
+model Candidato {
+  id            String        @id @default(uuid())
+  nombre        String
+  email         String        @unique
+  telefono      String
+  dni           String?
+  distrito      String?
+  cvUrl         String
+  // PDF del CV en la base de datos — el filesystem de Render free es efímero.
+  // Nullable solo por candidatos legacy creados antes de esta columna.
+  cvData        Bytes?
+  // Consentimiento de tratamiento de datos personales (Ley 29733) — nullable
+  // solo por candidatos legacy anteriores a esta columna.
+  consentimientoEn DateTime?
+  creadoEn      DateTime      @default(now())
+  postulaciones Postulacion[]
+}
+
+model Postulacion {
+  id             String                @id @default(uuid())
+  etapa          EtapaPipeline         @default(POSTULADO)
+  scoreTotal     Float                 @default(0)
+  creadoEn       DateTime              @default(now())
+  actualizadoEn  DateTime              @updatedAt
+  candidato      Candidato             @relation(fields: [candidatoId], references: [id])
+  candidatoId    String
+  vacante        Vacante               @relation(fields: [vacanteId], references: [id])
+  vacanteId      String
+  score          ScoreDetalle?
+  respuestas     RespuestaFormulario[]
+  entrevistas    Entrevista[]
+  disponibilidad Disponibilidad?
+}
+
+enum EtapaPipeline {
+  POSTULADO
+  EN_REVISION
+  ENTREVISTA
+  OFERTA
+  DESCARTADO
+}
+
+model ScoreDetalle {
+  id                  String      @id @default(uuid())
+  scoreCV             Float
+  scoreDisponibilidad Float
+  scoreCuestionario   Float
+  scoreCoherencia     Float       @default(0)
+  keywordsEncontradas String[]
+  postulacion         Postulacion @relation(fields: [postulacionId], references: [id])
+  postulacionId       String      @unique
+  actualizadoEn       DateTime    @updatedAt
+}
+
+model Disponibilidad {
+  id            String           @id @default(uuid())
+  modalidad     ModalidadTrabajo
+  turnoManana   Boolean
+  turnoTarde    Boolean
+  postulacion   Postulacion      @relation(fields: [postulacionId], references: [id])
+  postulacionId String           @unique
+}
+
+model RespuestaFormulario {
+  id            String      @id @default(uuid())
+  preguntaId    Int
+  valorLikert   Int
+  postulacion   Postulacion @relation(fields: [postulacionId], references: [id])
+  postulacionId String
+}
+
+model Entrevista {
+  id            String              @id @default(uuid())
+  fechaHora     DateTime
+  modalidad     ModalidadEntrevista
+  notas         String?
+  estado        EstadoEntrevista    @default(PROGRAMADA)
+  postulacion   Postulacion         @relation(fields: [postulacionId], references: [id])
+  postulacionId String
+  creadoEn      DateTime            @default(now())
+}
+
+enum ModalidadEntrevista {
+  PRESENCIAL
+  VIDEOLLAMADA
+}
+
+enum EstadoEntrevista {
+  PROGRAMADA
+  REALIZADA
+  CANCELADA
+}

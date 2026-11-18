@@ -1,0 +1,10 @@
+#!/bin/sh
+# Bloquea commits con secretos. Si gitleaks no está instalado, avisa y deja pasar.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner || {
+    echo "gitleaks encontró posibles secretos en lo que vas a commitear. Revísalo antes de continuar."
+    exit 1
+  }
+else
+  echo "Aviso: gitleaks no está instalado (winget install Gitleaks.Gitleaks). Se omite el escaneo de secretos."
+fi

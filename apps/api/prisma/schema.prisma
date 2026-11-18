@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  OWNER
+  ADMIN
+  RECLUTADOR
+  ENTREVISTADOR
+}
+
+enum EstadoVerificacion {
+  PENDIENTE
+  VERIFICADA
+  SUSPENDIDA
+}
+
+model Usuario {
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique
+  nombre       String
+  passwordHash String
+  esSuperadmin Boolean     @default(false)
+  creadoEn     DateTime    @default(now())
+  membresias   Membresia[]
+}
+
+model Organizacion {
+  id                      String             @id @default(uuid()) @db.Uuid
+  nombre                  String
+  slug                    String             @unique
+  logoClave               String?
+  colorAcento             String             @default("#0F766E")
+  zonaHoraria             String             @default("America/Lima")
+  locale                  String             @default("es-PE")
+  pais                    String             @default("PE") @db.Char(2)
+  sitioWeb                String?
+  textoPrivacidad         String             @default("")
+  mensajeCierre           String             @default("Gracias por postular. En esta ocasión el proceso continuó con otros perfiles.")
+  retencionMeses          Int                @default(12)
+  estadoVerificacion      EstadoVerificacion @default(PENDIENTE)
+  verificadaPorId         String?            @db.Uuid
+  verificadaEn            DateTime?
+  dominioCorreoVerificado Boolean            @default(false)
+  esDemo                  Boolean            @default(false)
+  googleJobsHabilitado    Boolean            @default(false)
+  creadoEn                DateTime           @default(now())
+  membresias              Membresia[]
+}
+
+/// Modelo multiempresa: lleva organizacionId y @@unique([id, organizacionId]).
+model Membresia {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizacionId String       @db.Uuid
+  usuarioId      String       @db.Uuid
+  rol            Rol
+  version        Int          @default(1)
+  creadoEn       DateTime     @default(now())
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  usuario        Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, organizacionId])
+  @@unique([id, organizacionId])
+  @@index([organizacionId])
+}

@@ -1,0 +1,21 @@
+{
+  "name": "criterio",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.1.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^16.5.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.73.0"
+  }
+}
