@@ -97,4 +97,56 @@ describe('PUT /api/organizacion', () => {
     expect(res.status).toBe(200);
     expect(await prismaPrueba.slugAnterior.count()).toBe(0);
   });
+
+  it('logoClave ya no se puede escribir desde el cliente → 400 y la empresa no cambia', async () => {
+    const org = await crearOrganizacion();
+    const { cabeceras } = await miembroCon(org.id, 'OWNER');
+    const res = await editar(cabeceras, { logoClave: 'otra/clave.png' });
+    expect(res.status).toBe(400);
+    expect((await prismaPrueba.organizacion.findUniqueOrThrow({ where: { id: org.id } })).logoClave).toBeNull();
+  });
+
+  it('un NUL en textoPrivacidad → 400 (no 500)', async () => {
+    const org = await crearOrganizacion();
+    const { cabeceras } = await miembroCon(org.id, 'OWNER');
+    const res = await editar(cabeceras, { textoPrivacidad: `hola${String.fromCharCode(0)}mundo` });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_FAILED');
+  });
+});
+
+describe('PUT /api/organizacion: límite de cambios de slug', () => {
+  it('3 cambios en 30 días pasan; el 4º → 429 y el slug no cambia; otros campos siguen editables', async () => {
+    const org = await crearOrganizacion();
+    const { cabeceras } = await miembroCon(org.id, 'OWNER');
+    for (const slug of ['cambio-uno', 'cambio-dos', 'cambio-tres']) {
+      expect((await editar(cabeceras, { slug })).status).toBe(200);
+    }
+    const res = await editar(cabeceras, { slug: 'cambio-cuatro' });
+    expect(res.status).toBe(429);
+    expect(res.body.error.code).toBe('RATE_LIMITED');
+    expect((await prismaPrueba.organizacion.findUniqueOrThrow({ where: { id: org.id } })).slug).toBe('cambio-tres');
+    expect(await prismaPrueba.slugAnterior.count()).toBe(3);
+    expect((await editar(cabeceras, { nombre: 'Sigue editable' })).status).toBe(200);
+    // Recuperar su propio slug anterior también cuenta como cambio.
+    expect((await editar(cabeceras, { slug: org.slug })).status).toBe(429);
+  });
+
+  it('los cambios de hace más de 30 días no cuentan', async () => {
+    const org = await crearOrganizacion();
+    const { cabeceras } = await miembroCon(org.id, 'OWNER');
+    for (const slug of ['cambio-uno', 'cambio-dos', 'cambio-tres']) await editar(cabeceras, { slug });
+    const hace31Dias = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    await prismaPrueba.slugAnterior.updateMany({ data: { creadoEn: hace31Dias } });
+    expect((await editar(cabeceras, { slug: 'cambio-cuatro' })).status).toBe(200);
+  });
+
+  it('el límite es por empresa', async () => {
+    const org = await crearOrganizacion();
+    const otra = await crearOrganizacion();
+    const { cabeceras } = await miembroCon(org.id, 'OWNER');
+    const deOtra = (await miembroCon(otra.id, 'OWNER')).cabeceras;
+    for (const slug of ['cambio-uno', 'cambio-dos', 'cambio-tres']) await editar(cabeceras, { slug });
+    expect((await editar(deOtra, { slug: 'otra-nuevo' })).status).toBe(200);
+  });
 });

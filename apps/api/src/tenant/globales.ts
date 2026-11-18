@@ -21,7 +21,6 @@ const ACTUALIZACIONES = new Set(['update', 'updateMany', 'updateManyAndReturn'])
 export const CAMPOS_EDITABLES_ORGANIZACION: ReadonlySet<string> = new Set([
   'nombre',
   'slug',
-  'logoClave',
   'colorAcento',
   'zonaHoraria',
   'locale',

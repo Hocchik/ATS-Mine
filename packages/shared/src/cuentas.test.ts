@@ -129,6 +129,20 @@ describe('actualizarOrganizacionSchema', () => {
   it('rechaza claves desconocidas', () => {
     expect(actualizarOrganizacionSchema.safeParse({ esDemo: true }).success).toBe(false);
   });
+  it('logoClave ya no es editable por el cliente', () => {
+    expect(actualizarOrganizacionSchema.safeParse({ logoClave: 'x/y.png' }).success).toBe(false);
+  });
+  it('los textos largos rechazan caracteres de control pero admiten saltos de línea y tabuladores', () => {
+    const nul = String.fromCharCode(0);
+    const campana = String.fromCharCode(7);
+    const del = String.fromCharCode(127);
+    for (const campo of ['textoPrivacidad', 'mensajeCierre'] as const) {
+      expect(actualizarOrganizacionSchema.safeParse({ [campo]: `a${nul}b` }).success).toBe(false);
+      expect(actualizarOrganizacionSchema.safeParse({ [campo]: `a${campana}b` }).success).toBe(false);
+      expect(actualizarOrganizacionSchema.safeParse({ [campo]: `a${del}b` }).success).toBe(false);
+      expect(actualizarOrganizacionSchema.safeParse({ [campo]: 'a\nb\r\n\tc' }).success).toBe(true);
+    }
+  });
 });
 
 describe('invitaciones y roles', () => {

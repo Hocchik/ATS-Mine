@@ -29,6 +29,8 @@ export const SELECT_ORGANIZACION = {
 const MOTIVO_SLUG = 'organizaciones.slug';
 const SLUG_OCUPADO = 'Ese slug ya está en uso';
 const INTENTOS_SERIALIZABLE = 3;
+const MAX_CAMBIOS_SLUG = 3;
+const VENTANA_CAMBIOS_SLUG_MS = 30 * 24 * 60 * 60 * 1000;
 const CONFLICTO = 'Otro cambio se hizo al mismo tiempo; intenta de nuevo';
 
 const esConflictoDeSerializacion = (err: unknown) =>
@@ -80,6 +82,14 @@ export async function cambiarSlug(
   const { usadaPor, anteriorDe } = await duenoDelSlug(tx, slugNuevo);
   if (usadaPor || (anteriorDe && anteriorDe !== organizacionId)) throw new AppError('DUPLICATE', SLUG_OCUPADO);
   await ejecutarComoPlataforma(MOTIVO_SLUG, async () => {
+    // Límite durable (evita acaparar marcas y que SlugAnterior crezca sin freno): cada cambio deja una fila.
+    const desde = new Date(Date.now() - VENTANA_CAMBIOS_SLUG_MS);
+    const recientes = await tx.slugAnterior.count({
+      where: { organizacionIdDestino: organizacionId, creadoEn: { gt: desde } },
+    });
+    if (recientes >= MAX_CAMBIOS_SLUG) {
+      throw new AppError('RATE_LIMITED', 'Solo se puede cambiar el slug 3 veces cada 30 días');
+    }
     if (anteriorDe) await tx.slugAnterior.delete({ where: { slug: slugNuevo } });
     await tx.slugAnterior.create({ data: { slug: slugActual, organizacionIdDestino: organizacionId } });
   });

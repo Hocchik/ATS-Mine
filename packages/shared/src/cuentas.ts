@@ -45,6 +45,10 @@ export const contrasenaSchema = z
 const CARACTERES_DE_CONTROL = /[\u0000-\u001F\u007F]/;
 const sinControl = (s: string) => !CARACTERES_DE_CONTROL.test(s);
 const MENSAJE_CONTROL = 'No puede contener caracteres de control';
+/** Textos de varias líneas: se admiten tabulador, salto de línea y retorno de carro; el resto de controles no. */
+// eslint-disable-next-line no-control-regex
+const CONTROL_EXCEPTO_ESPACIADO = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+const sinControlTexto = (s: string) => !CONTROL_EXCEPTO_ESPACIADO.test(s);
 
 export const nombrePersonaSchema = z.string().trim().min(1).max(100).refine(sinControl, { message: MENSAJE_CONTROL });
 const nombreOrganizacionSchema = z.string().trim().min(1).max(120).refine(sinControl, { message: MENSAJE_CONTROL });
@@ -104,7 +108,6 @@ export const actualizarOrganizacionSchema = z
   .object({
     nombre: nombreOrganizacionSchema.optional(),
     slug: slugSchema.optional(),
-    logoClave: z.string().max(300).optional(),
     colorAcento: z
       .string()
       .regex(/^#[0-9A-Fa-f]{6}$/, 'Color inválido')
@@ -113,8 +116,8 @@ export const actualizarOrganizacionSchema = z
     locale: localeSchema.optional(),
     pais: paisSchema.optional(),
     sitioWeb: urlHttpsSchema.optional(),
-    textoPrivacidad: z.string().max(20000).optional(),
-    mensajeCierre: z.string().max(1000).optional(),
+    textoPrivacidad: z.string().max(20000).refine(sinControlTexto, { message: MENSAJE_CONTROL }).optional(),
+    mensajeCierre: z.string().max(1000).refine(sinControlTexto, { message: MENSAJE_CONTROL }).optional(),
     retencionMeses: z.number().int().min(1).max(120).optional(),
     googleJobsHabilitado: z.boolean().optional(),
   })
