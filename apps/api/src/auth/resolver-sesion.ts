@@ -126,3 +126,6 @@ export function crearResolverSesion({ prisma, secreto, reloj = Date.now, ttlMs =
     },
   };
 }
+
+/** Resolver y funciones de invalidación: lo que reciben los módulos que cambian sesiones, roles o empresas. */
+export type SesionesApp = ReturnType<typeof crearResolverSesion>;

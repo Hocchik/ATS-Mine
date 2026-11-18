@@ -12,15 +12,18 @@ import { verificarAislamiento } from './verificar';
 beforeEach(limpiarBase);
 
 const prismaTenant = extenderConTenant(prismaPrueba);
-const resolverReal = () => crearResolverSesion({ prisma: prismaTenant, secreto: SECRETO_PRUEBA }).resolver;
+const sesionesReales = () => crearResolverSesion({ prisma: prismaTenant, secreto: SECRETO_PRUEBA });
+const resolverReal = () => sesionesReales().resolver;
 
-const appReal = () =>
-  crearApp({
+const appReal = () => {
+  const sesiones = sesionesReales();
+  return crearApp({
     logger: crearLogger('silent'),
-    resolverSesion: resolverReal(),
+    resolverSesion: sesiones.resolver,
     seguridad: SEGURIDAD_PRUEBA,
-    modulos: modulosDeLaApp({ prisma: prismaTenant }),
+    modulos: modulosDeLaApp({ prisma: prismaTenant, sesiones, seguridad: SEGURIDAD_PRUEBA }),
   });
+};
 
 describe('aislamiento entre empresas (todas las rutas de la app)', () => {
   it('ninguna ruta expone datos de otra empresa ni rutas de plataforma a quien no es superadmin', async () => {

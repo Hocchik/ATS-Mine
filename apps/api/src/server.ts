@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { crearApp } from './app';
+import { crearApp, type Seguridad } from './app';
+import { crearResolverSesion } from './auth/resolver-sesion';
 import { cargarConfig } from './config';
 import { crearPrismaBase } from './db/prisma';
-import { sinSesion } from './http/sesion';
 import { crearLogger } from './logger';
 import { modulosDeLaApp } from './modulos';
 import { extenderConTenant } from './tenant/extension';
@@ -18,16 +18,19 @@ const logger = crearLogger(config.LOG_LEVEL);
 const prismaBase = crearPrismaBase();
 const prisma = extenderConTenant(prismaBase);
 
+const seguridad: Seguridad = {
+  jwtSecret: config.JWT_SECRET,
+  webOrigin: config.WEB_ORIGIN,
+  edgeSecret: config.EDGE_SECRET,
+  cookiesSeguras: config.NODE_ENV === 'production',
+};
+const sesiones = crearResolverSesion({ prisma, secreto: config.JWT_SECRET });
+
 const { app } = crearApp({
   logger,
-  resolverSesion: sinSesion,
-  seguridad: {
-    jwtSecret: config.JWT_SECRET,
-    webOrigin: config.WEB_ORIGIN,
-    edgeSecret: config.EDGE_SECRET,
-    cookiesSeguras: config.NODE_ENV === 'production',
-  },
-  modulos: modulosDeLaApp({ prisma }),
+  resolverSesion: sesiones.resolver,
+  seguridad,
+  modulos: modulosDeLaApp({ prisma, sesiones, seguridad }),
 });
 
 const server = app.listen(config.PORT, () => logger.info({ puerto: config.PORT }, 'API escuchando'));
