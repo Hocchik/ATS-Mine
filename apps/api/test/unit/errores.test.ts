@@ -10,6 +10,10 @@ describe('AppError', () => {
     ['VERSION_CONFLICT', 409],
     ['VACANTE_CERRADA', 410],
     ['RATE_LIMITED', 429],
+    ['CREDENCIALES_INVALIDAS', 401],
+    ['CSRF_INVALIDO', 403],
+    ['SIN_EMPRESA', 403],
+    ['TOKEN_INVALIDO', 400],
     ['INTERNAL', 500],
   ] as const)('%s → %i', (codigo, status) => {
     expect(new AppError(codigo, 'x').status).toBe(status);

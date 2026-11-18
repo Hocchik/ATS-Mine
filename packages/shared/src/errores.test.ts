@@ -28,6 +28,12 @@ describe('respuestaErrorSchema', () => {
     expect(r.success).toBe(false);
   });
 
+  it('incluye los códigos de cuentas', () => {
+    for (const c of ['CREDENCIALES_INVALIDAS', 'CSRF_INVALIDO', 'SIN_EMPRESA', 'TOKEN_INVALIDO']) {
+      expect(CODIGOS_ERROR).toContain(c);
+    }
+  });
+
   it('no tiene códigos duplicados', () => {
     expect(new Set(CODIGOS_ERROR).size).toBe(CODIGOS_ERROR.length);
   });

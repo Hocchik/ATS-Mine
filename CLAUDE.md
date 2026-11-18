@@ -21,7 +21,7 @@ El código de GLONIS (`legacy/glonis/`) es **solo de referencia**: de ahí se re
 |---|---|
 | Monorepo | `apps/web` · `apps/api` · `services/ai` · `packages/shared` |
 | Web | React 19 · Vite · TypeScript · Tailwind 4 · shadcn/ui · TanStack Table/Query · dnd-kit · FullCalendar · Recharts |
-| API | Node 22+ · Express · TypeScript · Prisma · PostgreSQL (Neon) |
+| API | Node 22+ · Express · TypeScript · Prisma · PostgreSQL (Neon) · jose · bcryptjs · cookie-parser · express-rate-limit |
 | IA | Python · FastAPI · Ollama/llama.cpp · pydantic · pytest |
 | Compartido | Zod (esquemas, tipos, catálogo de errores) |
 | Deploy | Vercel (web + función de metadatos) · Render (API) · Neon (DB) |
