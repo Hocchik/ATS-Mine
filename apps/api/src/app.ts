@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import cookieParser from 'cookie-parser';
 import express, { Router } from 'express';
 import helmet from 'helmet';
 import type { Logger } from 'pino';
@@ -33,6 +34,8 @@ export function crearApp({ logger, resolverSesion, modulos }: DependenciasApp) {
     }),
   );
   app.use(express.json({ limit: '100kb' }));
+  // El resolver de sesión lee la cookie de req.cookies: tiene que estar montado antes del router.
+  app.use(cookieParser());
 
   const registro = crearRegistro(resolverSesion);
   const router = Router();
