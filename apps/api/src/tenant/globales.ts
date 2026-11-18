@@ -77,5 +77,7 @@ export function protegerModeloGlobal(
     return { ...args, where: agregarRestriccion(args.where, { id: contexto.organizacionId }) };
   }
 
-  return args;
+  // Cualquier otro modelo global (TokenRestablecer, SlugAnterior, EventoAuditoria, …) es solo de plataforma.
+  if (!contexto) throw new SinContextoTenantError(modelo, operacion);
+  rechazar(`${modelo} solo se usa en modo plataforma`);
 }

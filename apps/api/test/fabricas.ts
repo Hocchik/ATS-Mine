@@ -21,3 +21,19 @@ export function crearUsuario() {
 export function crearMembresia(usuarioId: string, organizacionId: string, rol: Rol = 'OWNER') {
   return prismaPrueba.membresia.create({ data: { usuarioId, organizacionId, rol } });
 }
+
+export function crearInvitacion(
+  organizacionId: string,
+  datos: { email?: string; rol?: Rol; creadaPorId?: string } = {},
+) {
+  return prismaPrueba.invitacion.create({
+    data: {
+      organizacionId,
+      email: datos.email ?? `inv-${sufijo()}@ejemplo.test`,
+      rol: datos.rol ?? 'RECLUTADOR',
+      tokenHash: randomUUID() + randomUUID(),
+      expiraEn: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+      creadaPorId: datos.creadaPorId ?? randomUUID(),
+    },
+  });
+}

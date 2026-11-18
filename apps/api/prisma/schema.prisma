@@ -26,8 +26,10 @@ model Usuario {
   nombre       String
   passwordHash String
   esSuperadmin Boolean     @default(false)
+  versionSesion Int        @default(1)
   creadoEn     DateTime    @default(now())
   membresias   Membresia[]
+  tokensRestablecer TokenRestablecer[]
 }
 
 model Organizacion {
@@ -51,6 +53,8 @@ model Organizacion {
   googleJobsHabilitado    Boolean            @default(false)
   creadoEn                DateTime           @default(now())
   membresias              Membresia[]
+  invitaciones            Invitacion[]
+  slugsAnteriores         SlugAnterior[]
 }
 
 /// Modelo multiempresa: lleva organizacionId y @@unique([id, organizacionId]).
@@ -67,4 +71,71 @@ model Membresia {
   @@unique([usuarioId, organizacionId])
   @@unique([id, organizacionId])
   @@index([organizacionId])
+}
+
+/// Multiempresa (tiene organizacionId).
+model Invitacion {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizacionId String       @db.Uuid
+  email          String
+  rol            Rol
+  tokenHash      String       @unique
+  expiraEn       DateTime
+  aceptadaEn     DateTime?
+  revocadaEn     DateTime?
+  creadaPorId    String       @db.Uuid
+  creadoEn       DateTime     @default(now())
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@unique([id, organizacionId])
+  @@index([organizacionId])
+}
+
+/// Global, solo modo plataforma.
+model TokenRestablecer {
+  id        String    @id @default(uuid()) @db.Uuid
+  usuarioId String    @db.Uuid
+  tokenHash String    @unique
+  expiraEn  DateTime
+  usadoEn   DateTime?
+  creadoEn  DateTime  @default(now())
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+}
+
+/// Global, solo modo plataforma. Un slug anterior queda reservado para siempre (301 en la Fase 9).
+model SlugAnterior {
+  slug                  String       @id
+  organizacionIdDestino String       @db.Uuid
+  creadoEn              DateTime     @default(now())
+  organizacion          Organizacion @relation(fields: [organizacionIdDestino], references: [id], onDelete: Cascade)
+}
+
+enum TipoEventoAuditoria {
+  LOGIN
+  LOGIN_FALLIDO
+  REGISTRO
+  CAMBIO_ROL
+  MIEMBRO_ELIMINADO
+  INVITACION_CREADA
+  INVITACION_ACEPTADA
+  INVITACION_REVOCADA
+  ORGANIZACION_CREADA
+  VERIFICACION_ORG
+  SUSPENSION_ORG
+  REACTIVACION_ORG
+  RESTABLECER_GENERADO
+  RESTABLECER_USADO
+}
+
+/// Global, solo modo plataforma. Nunca guarda emails ni contraseñas.
+model EventoAuditoria {
+  id                     String              @id @default(uuid()) @db.Uuid
+  tipo                   TipoEventoAuditoria
+  usuarioId              String?             @db.Uuid
+  organizacionAfectadaId String?             @db.Uuid
+  ip                     String?
+  datos                  Json                @default("{}")
+  creadoEn               DateTime            @default(now())
+
+  @@index([organizacionAfectadaId, creadoEn])
 }

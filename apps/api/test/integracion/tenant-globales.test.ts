@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ejecutarComoPlataforma, ejecutarEnTenant } from '../../src/tenant/contexto';
 import { extenderConTenant, SinContextoTenantError } from '../../src/tenant/extension';
-import { ViolacionMultiempresaError } from '../../src/tenant/relaciones';
+import { MODELOS_TENANT, ViolacionMultiempresaError } from '../../src/tenant/relaciones';
 import { limpiarBase, prismaPrueba } from '../db';
-import { crearMembresia, crearOrganizacion, crearUsuario } from '../fabricas';
+import { crearInvitacion, crearMembresia, crearOrganizacion, crearUsuario } from '../fabricas';
 
 const prisma = extenderConTenant(prismaPrueba);
 
@@ -136,5 +136,78 @@ describe('modo plataforma', () => {
       prisma.organizacion.update({ where: { id: orgB.id }, data: { estadoVerificacion: 'VERIFICADA' } }),
     );
     expect(org.estadoVerificacion).toBe('VERIFICADA');
+  });
+});
+
+describe('modelos de cuentas', () => {
+  it('MODELOS_TENANT incluye Invitacion y no los globales de plataforma', () => {
+    expect(MODELOS_TENANT.has('Invitacion')).toBe(true);
+    for (const m of ['TokenRestablecer', 'SlugAnterior', 'EventoAuditoria']) expect(MODELOS_TENANT.has(m)).toBe(false);
+  });
+
+  const operaciones = {
+    TokenRestablecer: {
+      findMany: () => prisma.tokenRestablecer.findMany(),
+      create: (u: string) =>
+        prisma.tokenRestablecer.create({ data: { usuarioId: u, tokenHash: `h-${u}`, expiraEn: new Date() } }),
+    },
+    SlugAnterior: {
+      findMany: () => prisma.slugAnterior.findMany(),
+      create: (_u: string, o: string) =>
+        prisma.slugAnterior.create({ data: { slug: `viejo-${o}`, organizacionIdDestino: o } }),
+    },
+    EventoAuditoria: {
+      findMany: () => prisma.eventoAuditoria.findMany(),
+      create: () => prisma.eventoAuditoria.create({ data: { tipo: 'LOGIN' } }),
+    },
+  } as const;
+
+  describe.each(Object.entries(operaciones))('%s fuera del modo plataforma', (_nombre, ops) => {
+    it.each(['findMany', 'create'] as const)('con contexto de empresa, %s lanza ViolacionMultiempresaError', async (op) => {
+      const { orgA, usuario } = await escenario();
+      await expect(
+        ejecutarEnTenant(orgA.id, () => (op === 'findMany' ? ops.findMany() : ops.create(usuario.id, orgA.id))),
+      ).rejects.toBeInstanceOf(ViolacionMultiempresaError);
+    });
+
+    it.each(['findMany', 'create'] as const)('sin contexto, %s lanza SinContextoTenantError', async (op) => {
+      const { orgA, usuario } = await escenario();
+      await expect(op === 'findMany' ? ops.findMany() : ops.create(usuario.id, orgA.id)).rejects.toBeInstanceOf(
+        SinContextoTenantError,
+      );
+    });
+
+    it('en modo plataforma funciona', async () => {
+      const { orgA, usuario } = await escenario();
+      await ejecutarComoPlataforma('prueba', async () => {
+        await ops.create(usuario.id, orgA.id);
+        expect(await ops.findMany()).toHaveLength(1);
+      });
+    });
+  });
+});
+
+describe('Invitacion aislada por empresa', () => {
+  it('una invitación de B no se ve desde A y crear con el organizacionId de B lanza', async () => {
+    const { orgA, orgB } = await escenario();
+    const invB = await crearInvitacion(orgB.id);
+    const invA = await crearInvitacion(orgA.id);
+    const vistas = await ejecutarEnTenant(orgA.id, () => prisma.invitacion.findMany());
+    expect(vistas.map((i) => i.id)).toEqual([invA.id]);
+    expect(await ejecutarEnTenant(orgA.id, () => prisma.invitacion.findUnique({ where: { id: invB.id } }))).toBeNull();
+    await expect(
+      ejecutarEnTenant(orgA.id, () =>
+        prisma.invitacion.create({
+          data: {
+            organizacionId: orgB.id,
+            email: 'x@ejemplo.test',
+            rol: 'RECLUTADOR',
+            tokenHash: 'zzz',
+            expiraEn: new Date(),
+            creadaPorId: '00000000-0000-4000-8000-000000000000',
+          },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(ViolacionMultiempresaError);
   });
 });
