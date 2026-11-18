@@ -11,9 +11,9 @@ El código de GLONIS (`legacy/glonis/`) es **solo de referencia**: de ahí se re
 
 ## Repositorio y git
 
-- El remoto `glonis-original` es el repo original de GLONIS. **Nunca hacer push ahí ni modificarlo.**
-- El trabajo de Criterio vive en la rama `criterio` hasta mudarse al repositorio nuevo.
-- El repo será público: **nunca documentar contraseñas, tokens ni secretos** en ningún archivo.
+- Repositorio: `origin` = https://github.com/Hocchik/ATS-Mine (historial limpio, rama principal `main`). Cada fase se trabaja en su rama (`fase-N-…`).
+- El remoto `glonis-original` es el repo original de GLONIS. **Nunca hacer push ahí ni modificarlo** (tiene el push deshabilitado localmente).
+- El repo es público: **nunca documentar contraseñas, tokens ni secretos** en ningún archivo. `.claude/settings.json` no se publica porque tiene credenciales locales.
 
 ## Stack
 
@@ -50,7 +50,10 @@ El código de GLONIS (`legacy/glonis/`) es **solo de referencia**: de ahí se re
    - Las consultas se hacen con `await` dentro de `ejecutarEnTenant` / `ejecutarComoPlataforma`.
    - `$queryRaw`/`$executeRaw` solo en `db/sql-revisado.ts` (los salta el filtro; lo exige ESLint).
    - El acceso a datos de otra empresa responde 404.
-9. **Toda ruta se registra con `registro.definir()`** y se clasifica (`PUBLICA` | `TENANT`). Una ruta `TENANT` exige sesión y un escenario de `aislamiento`, que la suite prueba con un control positivo (la dueña la ve) y uno negativo (otra empresa recibe 404 o no ve el marcador). ESLint y una prueba que recorre las rutas de Express impiden registrar rutas por fuera.
+9. **Toda ruta se registra con `registro.definir()`** y se clasifica: `PUBLICA` | `AUTENTICADA` | `TENANT` (con `roles` opcionales) | `PLATAFORMA` (solo superadmin). Las no públicas viven bajo `/api/`.
+   - `TENANT` exige sesión con empresa y un escenario de `aislamiento`, que la suite prueba con control positivo (la dueña, con `roles[0]`) y negativo (otra empresa recibe 404 o no ve el marcador). `AUTENTICADA` declara `{ noAplica: 'motivo' }`. A las `PLATAFORMA` la suite las prueba con OWNER/ADMIN/RECLUTADOR/sin empresa (todos deben recibir 403 FORBIDDEN).
+   - El registro rechaza rutas duplicadas o sombreadas (normalización igual a Express 5). ESLint y una prueba que recorre las rutas de Express impiden registrar rutas por fuera.
+   - En handlers `TENANT` usa `obtenerSesionEmpresa(res)`; en `AUTENTICADA` solo `obtenerSesion(res)` (la empresa activa es informativa: `obtenerEmpresaActivaOpcional`). Solo `src/http/sesion.ts` importa `ejecutarEnTenant` (ESLint).
 10. **Fechas en UTC** en la base. Se muestran con `Intl`, en la zona horaria y el locale de la empresa, con la etiqueta de zona.
 11. **Formato de error único:** `{ error: { code, message, details?, requestId } }`, con `code` del catálogo de `packages/shared`.
 12. **Validación con Zod en todos los bordes:** body, query, params y resultados del worker.
@@ -62,6 +65,17 @@ El código de GLONIS (`legacy/glonis/`) es **solo de referencia**: de ahí se re
 18. **Nunca se usan datos reales en el desarrollo**: solo CVs y empresas ficticias.
 19. **Google Empleos (JSON-LD) apagado** hasta cumplir todas las condiciones de la §7.4 del diseño. Las empresas `esDemo` nunca lo emiten.
 20. **Archivos de unas 250 líneas como máximo.** Backend organizado por dominio (`apps/api/src/modulos/…`) y frontend por funcionalidad (`features/…`).
+
+21. **Autenticación** (`apps/api/src/auth/`, `src/http/{sesion,csrf,edge}.ts`):
+   - Sesión = JWT HS256 en la cookie httpOnly `criterio_sesion` (SameSite=Lax, 12 h); el resolver revalida `Usuario.versionSesion` y `Membresia.version` con caché de 60 s y contador de generación.
+   - Todo método que modifica: `Origin` ajeno → 403 en cualquier ruta; en rutas no públicas además se exige `Origin === WEB_ORIGIN` y CSRF de doble envío (`X-CSRF-Token` = cookie `criterio_csrf`).
+   - **Invalidar la caché** (`sesiones.invalidarMembresia` / `invalidarUsuario`) **después del commit** cada vez que cambia un rol, se elimina un miembro, se suspende/reactiva una empresa o se restablece una contraseña.
+   - Logout incrementa `versionSesion`: cierra la sesión en todos los dispositivos.
+   - Solo el superadmin genera enlaces para restablecer contraseñas (un ADMIN de empresa podría tomar cuentas que son dueñas de otras empresas). Autoservicio por correo: Fase 10.
+   - Modelos globales que no son `Usuario`/`Organizacion` (`TokenRestablecer`, `SlugAnterior`, `EventoAuditoria`) solo en modo plataforma; `tokenHash` y `passwordHash` son campos secretos (omitidos y rechazados fuera de plataforma).
+   - Tokens de un solo uso: 32 bytes base64url, se guarda solo el sha256; nunca se registran en logs (el serializador oculta segmentos de ruta con forma de token).
+   - Auditoría con `auditar()`: nunca datos personales en `datos` (se rechazan por patrón), siempre después del commit.
+   - Operaciones que verifican y luego escriben (último OWNER, slugs, aceptar invitación) van en `enTransaccionSerializable` (reintenta P2034).
 
 ## Cómo trabajar
 

@@ -1,3 +1,4 @@
+import { AppError } from '../../http/errores';
 import type { Modulo } from '../../app';
 import { auditar } from '../../auditoria';
 import { generarToken } from '../../auth/tokens-aleatorios';
@@ -27,8 +28,12 @@ export function rutasEnlaceRestablecer({ prisma, seguridad }: DependenciasModulo
         // TokenRestablecer es solo de plataforma y tokenHash es secreto: todo en modo plataforma.
         const creado = await ejecutarComoPlataforma('superadmin.enlace-restablecer', () =>
           prisma.$transaction(async (tx) => {
-            const usuario = await tx.usuario.findUnique({ where: { id: usuarioId }, select: { id: true } });
+            const usuario = await tx.usuario.findUnique({ where: { id: usuarioId }, select: { id: true, esSuperadmin: true } });
             if (!usuario) throw noEncontrado();
+            // Un superadmin comprometido no debe poder tomar otras cuentas superadmin (ni rotar la propia por aquí).
+            if (usuario.esSuperadmin) {
+              throw new AppError('FORBIDDEN', 'Las cuentas superadmin se restablecen con el seed, no con enlaces');
+            }
             // Un enlace nuevo deja vencidos los anteriores pendientes: solo el último sirve.
             const ahora = new Date();
             await tx.tokenRestablecer.updateMany({

@@ -68,7 +68,8 @@ export function cambiarEstadoOrganizacion(
         return { org, membresiaIds, cambio: false };
       }
       const org = await tx.organizacion.update({ where: { id }, data: datos, select: SELECT_ORG_PLATAFORMA });
-      return { org, membresiaIds, cambio: true };
+      // "Cambio" = cambió el estado de verificación (lo que se audita); completar otros datos no lo es.
+      return { org, membresiaIds, cambio: org.estadoVerificacion !== actual.estadoVerificacion };
     }),
   );
 }

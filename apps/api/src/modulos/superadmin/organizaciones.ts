@@ -72,6 +72,10 @@ export function rutasSuperadminOrganizaciones({ prisma, sesiones }: Dependencias
         invalidar: false,
         decidir: (actual) => {
           if (actual.estadoVerificacion === 'SUSPENDIDA') throw new AppError('VERSION_CONFLICT', SUSPENDIDA);
+          // Ya verificada: no se reescribe quién ni cuándo; solo puede completarse el dato de dominio.
+          if (actual.estadoVerificacion === 'VERIFICADA') {
+            return dominioCorreoVerificado === undefined ? null : { dominioCorreoVerificado };
+          }
           return {
             estadoVerificacion: 'VERIFICADA',
             verificadaPorId: usuarioId,

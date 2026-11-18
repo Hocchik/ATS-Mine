@@ -6,7 +6,7 @@
 | Fase | Plan | Entregable que se puede probar | Depende de | Estado |
 |---|---|---|---|---|
 | 0 | [Base](2026-11-17-fase-0-base.md) | Monorepo con CI, errores, logs, Prisma base, filtro multiempresa y suite de aislamiento funcionando | — | ✅ Completa en local (CI escrita, se ejecuta al crear el repo nuevo) |
-| 1 | Cuentas | Registro, login con cookie + CSRF, empresas, membresías, invitaciones, superadmin y verificación | 0 | Pendiente |
+| 1 | [Cuentas](2026-11-18-fase-1-cuentas.md) | Registro, login con cookie + CSRF, empresas, membresías, invitaciones, superadmin y verificación | 0 | ✅ Completa |
 | 2 | Vacantes | CRUD de vacantes, criterios, preguntas, plantillas, bloqueo, publicar y duplicar (solo API) | 1 | Pendiente |
 | 3 | Postulación pública | Eliminatorias, cuestionario, PDF o mini perfil, hCaptcha, anonimización, puntaje base, seguimiento y comprobante (API) | 2 | Pendiente |
 | 4 | Servicio de IA | `TrabajoIA`, `/internal/*`, worker de Python, validación de citas, `ai:eval` y asistente | 3 | Pendiente |
