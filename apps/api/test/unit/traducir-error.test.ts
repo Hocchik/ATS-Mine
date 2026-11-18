@@ -23,6 +23,19 @@ describe('traducirError', () => {
   });
 
   it.each([
+    ['22021', 'invalid byte sequence for encoding "UTF8": 0x00'],
+    ['22P05', 'unsupported Unicode escape sequence'],
+  ])('error de Postgres %s (caracteres no válidos) → VALIDATION_FAILED', (codigoPg, mensaje) => {
+    const conocido = new Prisma.PrismaClientKnownRequestError('x', { code: 'P2010', clientVersion: '6', meta: { code: codigoPg, message: mensaje } });
+    const desconocido = new Prisma.PrismaClientUnknownRequestError(`Raw query failed. Code: \`${codigoPg}\`. Message: \`${mensaje}\``, { clientVersion: '6' });
+    for (const e of [conocido, desconocido]) {
+      const r = traducirError(e);
+      expect(r.code).toBe('VALIDATION_FAILED');
+      expect(r.message).toBe('Texto con caracteres no válidos');
+    }
+  });
+
+  it.each([
     ['P2002', 'DUPLICATE'],
     ['P2025', 'NOT_FOUND'],
     ['P2003', 'HAS_DEPENDENCIES'],

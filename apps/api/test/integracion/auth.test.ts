@@ -154,3 +154,17 @@ describe('POST /api/auth/login', () => {
     expect((await intento(13, 'otra@ejemplo.test')).status).toBe(401);
   });
 });
+
+describe('trust proxy', () => {
+  it('fuera de producción un X-Forwarded-For rotativo no evade el limitador por IP (login: 21.º → 429)', async () => {
+    const app = appAuth();
+    const intento = (n: number) =>
+      request(app)
+        .post('/api/auth/login')
+        .set('X-Forwarded-For', `198.51.100.${n}`)
+        .send({ email: `persona${n}@ejemplo.test`, contrasena: 'otra-contrasena-mala' });
+    for (let n = 1; n <= 20; n++) expect((await intento(n)).status).toBe(401);
+    const bloqueado = await intento(21);
+    expect(bloqueado.status).toBe(429);
+  });
+});

@@ -140,3 +140,18 @@ describe('invitaciones y roles', () => {
     expect(cambiarRolSchema.safeParse({ rol: 'x' }).success).toBe(false);
   });
 });
+
+describe('nombres sin caracteres de control', () => {
+  const malos = ['Ana\u0000', 'Ana\nPérez', 'Ana\tPérez', 'Ana\u007F'];
+  it.each(malos)('rechaza %j en nombre de persona y de empresa', (nombre) => {
+    expect(nombrePersonaSchema.safeParse(nombre).success).toBe(false);
+    const base = { slug: 'acme-demo', zonaHoraria: 'UTC', locale: 'es-PE', pais: 'PE' };
+    expect(crearOrganizacionSchema.safeParse({ ...base, nombre }).success).toBe(false);
+    expect(actualizarOrganizacionSchema.safeParse({ nombre }).success).toBe(false);
+  });
+
+  it('acepta letras con tildes y eñes', () => {
+    expect(nombrePersonaSchema.safeParse('José Ñandú Pérez').success).toBe(true);
+    expect(actualizarOrganizacionSchema.safeParse({ nombre: 'Compañía Ñ' }).success).toBe(true);
+  });
+});

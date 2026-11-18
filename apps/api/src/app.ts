@@ -32,7 +32,8 @@ export interface DependenciasApp {
 export function crearApp({ logger, resolverSesion, seguridad, modulos }: DependenciasApp) {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  // Solo en producción hay un proxy de confianza delante (Vercel/Render); fuera de ahí un X-Forwarded-For sería falsificable.
+  app.set('trust proxy', seguridad.cookiesSeguras ? 1 : false);
   app.use(helmet());
   app.use(
     pinoHttp({

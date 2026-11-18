@@ -2,6 +2,7 @@ import { crearOrganizacionSchema } from '@criterio/shared';
 import type { Modulo } from '../../app';
 import { auditar } from '../../auditoria';
 import { ipCliente } from '../../http/edge';
+import { crearLimitador } from '../../http/limites';
 import { obtenerSesion } from '../../http/sesion';
 import { ejecutarComoPlataforma } from '../../tenant/contexto';
 import type { DependenciasModulos } from '..';
@@ -9,9 +10,17 @@ import { emitirSesionFirmada, versionSesionVigente, type EmpresaActivaRespuesta 
 import { enTransaccionSerializable, exigirSlugLibre, SELECT_ORGANIZACION } from './comun';
 
 const MOTIVO = 'organizaciones.crear';
+const UN_DIA_MS = 24 * 60 * 60 * 1000;
 
 /** POST /api/organizaciones: la persona autenticada crea una empresa (PENDIENTE) y queda como su OWNER. */
 export function rutaCrearOrganizacion({ prisma, seguridad }: DependenciasModulos): Modulo {
+  // Va después del guard de sesión (definir pone los guards antes de los handlers): la clave es la persona.
+  const limitePorPersona = crearLimitador({
+    ventanaMs: UN_DIA_MS,
+    maximo: 5,
+    clave: (_req, res) => `org:${obtenerSesion(res).usuarioId}`,
+  });
+
   return ({ registro, router }) => {
     registro.definir(
       router,
@@ -21,6 +30,7 @@ export function rutaCrearOrganizacion({ prisma, seguridad }: DependenciasModulos
         acceso: 'AUTENTICADA',
         aislamiento: { noAplica: 'crea una empresa nueva para la propia persona; no lee ni expone empresas existentes' },
       },
+      limitePorPersona,
       async (req, res) => {
         const { usuarioId } = obtenerSesion(res);
         const datos = crearOrganizacionSchema.parse(req.body);

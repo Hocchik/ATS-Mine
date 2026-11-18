@@ -16,14 +16,20 @@ const NO_ENCONTRADA = 'No encontrado';
 /** Rutas de la propia persona: leen o cambian solo su sesión y sus membresías (filtradas por su usuarioId). */
 const DATOS_PROPIOS = 'solo lee o cambia la sesión y las membresías de la propia persona (filtradas por su usuarioId)';
 
-export function rutasSesion({ prisma, seguridad }: DependenciasModulos): Modulo {
+export function rutasSesion({ prisma, sesiones, seguridad }: DependenciasModulos): Modulo {
   const versionVigente = (req: Request, usuarioId: string) =>
     versionSesionVigente(req, { prisma, seguridad, motivo: 'auth.cambiar-empresa' }, usuarioId);
 
   return ({ registro, router }) => {
     const def = { acceso: 'AUTENTICADA', aislamiento: { noAplica: DATOS_PROPIOS } } as const;
 
-    registro.definir(router, { metodo: 'post', ruta: '/api/auth/logout', ...def }, (_req, res) => {
+    // Cierra TODAS las sesiones de la persona (decisión de diseño): sube versionSesion y luego vacía la caché del resolver.
+    registro.definir(router, { metodo: 'post', ruta: '/api/auth/logout', ...def }, async (_req, res) => {
+      const { usuarioId } = obtenerSesion(res);
+      await ejecutarComoPlataforma('auth.logout', () =>
+        prisma.usuario.update({ where: { id: usuarioId }, data: { versionSesion: { increment: 1 } }, select: { id: true } }),
+      );
+      sesiones.invalidarUsuario(usuarioId);
       limpiarSesion(res, { segura: seguridad.cookiesSeguras });
       res.status(204).end();
     });
@@ -65,6 +71,8 @@ export function rutasSesion({ prisma, seguridad }: DependenciasModulos): Modulo 
     registro.definir(router, { metodo: 'post', ruta: '/api/auth/cambiar-empresa', ...def }, async (req, res) => {
       const { usuarioId } = obtenerSesion(res);
       const { organizacionId } = cambiarEmpresaSchema.parse(req.body);
+      // Primero la versión: un token revocado recibe siempre 401, tenga o no membresía en esa empresa.
+      const versionSesion = await versionVigente(req, usuarioId);
       const membresia = await ejecutarComoPlataforma('auth.cambiar-empresa', () =>
         prisma.membresia.findUnique({
           where: { usuarioId_organizacionId: { usuarioId, organizacionId } },
@@ -82,7 +90,6 @@ export function rutasSesion({ prisma, seguridad }: DependenciasModulos): Modulo 
         throw new AppError('NOT_FOUND', NO_ENCONTRADA);
       }
 
-      const versionSesion = await versionVigente(req, usuarioId);
       await emitirSesionFirmada(res, seguridad, {
         usuarioId,
         versionSesion,

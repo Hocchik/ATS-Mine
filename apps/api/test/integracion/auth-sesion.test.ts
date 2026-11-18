@@ -61,6 +61,23 @@ describe('POST /api/auth/logout', () => {
     const yo = await agente.get('/api/auth/yo');
     expect(yo.status).toBe(401);
   });
+
+  it('revoca todas las sesiones: la cookie vieja y la de otro dispositivo dan 401', async () => {
+    const persona = await personaConContrasena();
+    const app = appAuth();
+    const a = request.agent(app);
+    const b = request.agent(app);
+    const loginA = await a.post('/api/auth/login').send({ email: persona.email, contrasena: CONTRASENA });
+    await b.post('/api/auth/login').send({ email: persona.email, contrasena: CONTRASENA });
+    const cookieVieja = `${COOKIE_SESION}=${valorCookie(loginA, COOKIE_SESION)}`;
+    expect((await b.get('/api/auth/yo')).status).toBe(200);
+
+    const res = await a.post('/api/auth/logout').set('Origin', ORIGEN_PRUEBA).set('X-CSRF-Token', csrfDe(loginA));
+    expect(res.status).toBe(204);
+
+    expect((await request(app).get('/api/auth/yo').set('Cookie', cookieVieja)).status).toBe(401);
+    expect((await b.get('/api/auth/yo')).status).toBe(401);
+  });
 });
 
 describe('POST /api/auth/cambiar-empresa', () => {
@@ -124,6 +141,19 @@ describe('POST /api/auth/cambiar-empresa', () => {
     // El CSRF anterior ya no sirve.
     const viejo = await agente.post('/api/auth/logout').set('Origin', ORIGEN_PRUEBA).set('X-CSRF-Token', csrf);
     expect(viejo.status).toBe(403);
+  });
+
+  it('con la versión de sesión ya cambiada en la base (caché sin invalidar) → 401 tanto a una propia como a una ajena', async () => {
+    const { agente, csrf, persona, segunda } = await preparar();
+    const ajena = await crearOrganizacion();
+    // Calienta la caché del resolver: así el cambio directo en la base no se ve y solo lo atrapa la comprobación del handler.
+    expect((await agente.get('/api/auth/yo')).status).toBe(200);
+    await prismaPrueba.usuario.update({ where: { id: persona.id }, data: { versionSesion: { increment: 1 } } });
+    for (const destino of [segunda.id, ajena.id]) {
+      const res = await cambiar(agente, csrf, destino);
+      expect(res.status).toBe(401);
+      expect(res.body.error.code).toBe('UNAUTHENTICATED');
+    }
   });
 
   it('organizacionId que no es UUID → 400 VALIDATION_FAILED', async () => {

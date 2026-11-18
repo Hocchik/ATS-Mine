@@ -40,7 +40,14 @@ export const contrasenaSchema = z
     message: 'La contraseña es demasiado larga (máximo 72 bytes)',
   });
 
-export const nombrePersonaSchema = z.string().trim().min(1).max(100);
+/** Sin caracteres de control (NUL, saltos de línea, tabuladores, DEL): Postgres rechaza NUL y el resto ensucia listados y correos. */
+// eslint-disable-next-line no-control-regex
+const CARACTERES_DE_CONTROL = /[\u0000-\u001F\u007F]/;
+const sinControl = (s: string) => !CARACTERES_DE_CONTROL.test(s);
+const MENSAJE_CONTROL = 'No puede contener caracteres de control';
+
+export const nombrePersonaSchema = z.string().trim().min(1).max(100).refine(sinControl, { message: MENSAJE_CONTROL });
+const nombreOrganizacionSchema = z.string().trim().min(1).max(120).refine(sinControl, { message: MENSAJE_CONTROL });
 
 export const slugSchema = z
   .string()
@@ -71,7 +78,7 @@ const paisSchema = z
   .transform((s) => s.toUpperCase());
 
 export const crearOrganizacionSchema = z.object({
-  nombre: z.string().trim().min(1).max(120),
+  nombre: nombreOrganizacionSchema,
   slug: slugSchema,
   zonaHoraria: zonaHorariaSchema,
   locale: localeSchema,
@@ -95,7 +102,7 @@ const urlHttpsSchema = z
 // Las claves deben coincidir con CAMPOS_EDITABLES_ORGANIZACION (apps/api/src/tenant/globales.ts).
 export const actualizarOrganizacionSchema = z
   .object({
-    nombre: z.string().trim().min(1).max(120).optional(),
+    nombre: nombreOrganizacionSchema.optional(),
     slug: slugSchema.optional(),
     logoClave: z.string().max(300).optional(),
     colorAcento: z

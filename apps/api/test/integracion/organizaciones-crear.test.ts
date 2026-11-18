@@ -95,3 +95,28 @@ describe('POST /api/organizaciones', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('límite de creación de empresas', () => {
+  it('la 6.ª creación de la misma persona en la ventana → 429; otra persona sigue pudiendo', async () => {
+    const app = appAuth();
+    const iniciar = async () => {
+      const persona = await personaConContrasena();
+      const agente = request.agent(app);
+      let csrf = csrfDe(await agente.post('/api/auth/login').send({ email: persona.email, contrasena: CONTRASENA }));
+      return async (slug: string) => {
+        const res = await agente.post('/api/organizaciones').set('Origin', ORIGEN_PRUEBA).set('X-CSRF-Token', csrf).send(datosEmpresa(slug));
+        // Cada creación exitosa rota el CSRF.
+        if (res.status === 201) csrf = csrfDe(res);
+        return res;
+      };
+    };
+    const primera = await iniciar();
+    for (let n = 1; n <= 5; n++) expect((await primera(`empresa-${n}`)).status).toBe(201);
+    const sexta = await primera('empresa-6');
+    expect(sexta.status).toBe(429);
+    expect(sexta.body.error.code).toBe('RATE_LIMITED');
+
+    const otra = await iniciar();
+    expect((await otra('empresa-otra')).status).toBe(201);
+  });
+});
