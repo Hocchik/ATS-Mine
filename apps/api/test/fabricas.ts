@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Rol } from '@prisma/client';
+import { generarToken } from '../src/auth/tokens-aleatorios';
 import { prismaPrueba } from './db';
 
 const sufijo = () => randomUUID().slice(0, 8);
@@ -31,7 +32,7 @@ export function crearInvitacion(
       organizacionId,
       email: datos.email ?? `inv-${sufijo()}@ejemplo.test`,
       rol: datos.rol ?? 'RECLUTADOR',
-      tokenHash: randomUUID() + randomUUID(),
+      tokenHash: generarToken().hash,
       expiraEn: new Date(Date.now() + 7 * 24 * 3600 * 1000),
       creadaPorId: datos.creadaPorId ?? randomUUID(),
     },

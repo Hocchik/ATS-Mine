@@ -1,5 +1,5 @@
 import type { ContextoEmpresa } from './contexto';
-import { SinContextoTenantError, ViolacionMultiempresaError } from './relaciones';
+import { GLOBALES_FUERA_DE_PLATAFORMA, SinContextoTenantError, ViolacionMultiempresaError } from './relaciones';
 import { agregarRestriccion } from './restriccion';
 
 const LECTURAS = new Set([
@@ -47,6 +47,13 @@ export function protegerModeloGlobal(
   args: Record<string, unknown>,
   contexto: Extract<ContextoEmpresa, { modo: 'tenant' }> | undefined,
 ): Record<string, unknown> {
+  // Cualquier global que no sea Usuario ni Organizacion (TokenRestablecer, SlugAnterior, EventoAuditoria, …) es solo
+  // de plataforma.
+  if (!GLOBALES_FUERA_DE_PLATAFORMA.has(modelo)) {
+    if (!contexto) throw new SinContextoTenantError(modelo, operacion);
+    rechazar(`${modelo} solo se usa en modo plataforma`);
+  }
+
   const esLectura = LECTURAS.has(operacion);
 
   if (modelo === 'Usuario') {
@@ -77,7 +84,7 @@ export function protegerModeloGlobal(
     return { ...args, where: agregarRestriccion(args.where, { id: contexto.organizacionId }) };
   }
 
-  // Cualquier otro modelo global (TokenRestablecer, SlugAnterior, EventoAuditoria, …) es solo de plataforma.
-  if (!contexto) throw new SinContextoTenantError(modelo, operacion);
-  rechazar(`${modelo} solo se usa en modo plataforma`);
+  // Inalcanzable mientras GLOBALES_FUERA_DE_PLATAFORMA solo tenga Usuario y Organizacion: si se agrega un modelo
+  // al conjunto sin reglas propias aquí, queda cerrado.
+  rechazar(`${modelo} no tiene reglas fuera del modo plataforma`);
 }

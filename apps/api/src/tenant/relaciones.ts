@@ -18,6 +18,13 @@ export class SinContextoTenantError extends Error {
 
 const MODELOS = Prisma.dmmf.datamodel.models;
 
+/**
+ * Los únicos modelos globales (sin organizacionId) que se usan fuera del modo plataforma, con las reglas de
+ * globales.ts. Cualquier otro global (TokenRestablecer, SlugAnterior, EventoAuditoria, los que se agreguen) es solo
+ * de plataforma: ni se consulta directamente ni se llega a él por una relación.
+ */
+export const GLOBALES_FUERA_DE_PLATAFORMA: ReadonlySet<string> = new Set(['Usuario', 'Organizacion']);
+
 /** Modelos multiempresa = todo modelo con un campo `organizacionId`. Se deriva del schema: no se puede olvidar uno. */
 export const MODELOS_TENANT: ReadonlySet<string> = new Set(
   MODELOS.filter((m) => m.fields.some((f) => f.name === 'organizacionId')).map((m) => m.name),
@@ -52,6 +59,9 @@ function cruzar(origen: string, destino: string, ruta: string): void {
     throw new ViolacionMultiempresaError(
       `${ruta}: no se puede llegar a ${destino} (multiempresa) desde ${origen} (global) fuera del modo plataforma`,
     );
+  }
+  if (!esModeloTenant(destino) && !GLOBALES_FUERA_DE_PLATAFORMA.has(destino)) {
+    throw new ViolacionMultiempresaError(`${ruta}: ${destino} solo se usa en modo plataforma`);
   }
 }
 
