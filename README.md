@@ -25,5 +25,12 @@ Node 22 · pnpm 11 · PostgreSQL 17 · Python 3.12 + uv · (opcional) Ollama y g
 | `pnpm --filter @criterio/api dev` | API en modo desarrollo (puerto 3000) |
 | `pnpm --filter @criterio/web dev` | Web en modo desarrollo |
 | `cd services/ai && uv run pytest` | Pruebas del servicio de IA |
+| `pnpm --filter @criterio/api db:seed` | Crea o actualiza el superadmin (ver abajo) |
+
+## Superadmin
+
+El seed (`apps/api/prisma/seed.ts`) crea el superadmin a partir de `SEED_SUPERADMIN_EMAIL` y `SEED_SUPERADMIN_PASSWORD` (mínimo 10 caracteres), definidas en `apps/api/.env` o en el entorno. Sin esas variables termina sin hacer nada. Si la persona ya existe, la vuelve superadmin, cambia su contraseña y cierra sus sesiones anteriores.
+
+El superadmin verifica, suspende y reactiva empresas, y genera enlaces de un solo uso (1 h) para restablecer contraseñas (`/restablecer/<token>`).
 
 El código de `legacy/glonis/` es el proyecto anterior (GLONIS) y se conserva solo como referencia.

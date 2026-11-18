@@ -4,7 +4,9 @@ import type { PrismaTenant } from '../tenant/extension';
 import { moduloAuth } from './auth';
 import { moduloInvitaciones } from './invitaciones';
 import { moduloOrganizaciones } from './organizaciones';
+import { moduloRestablecer } from './restablecer';
 import { moduloSistema } from './sistema';
+import { moduloSuperadmin } from './superadmin';
 
 /** Los módulos solo reciben el cliente con filtro multiempresa; el modo plataforma se pide con ejecutarComoPlataforma. */
 export interface DependenciasModulos {
@@ -17,5 +19,12 @@ export interface DependenciasModulos {
 
 /** Única lista de módulos: la usan server.ts y la suite de aislamiento. Todo módulo nuevo se agrega aquí. */
 export function modulosDeLaApp(deps: DependenciasModulos): Modulo[] {
-  return [moduloSistema(), moduloAuth(deps), moduloOrganizaciones(deps), moduloInvitaciones(deps)];
+  return [
+    moduloSistema(),
+    moduloAuth(deps),
+    moduloOrganizaciones(deps),
+    moduloInvitaciones(deps),
+    moduloSuperadmin(deps),
+    moduloRestablecer(deps),
+  ];
 }
