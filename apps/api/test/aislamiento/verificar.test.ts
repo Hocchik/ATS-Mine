@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { crearApp, type Modulo } from '../../src/app';
+import { crearResolverSesion } from '../../src/auth/resolver-sesion';
 import type { Acceso, DefinicionRuta } from '../../src/http/registro';
 import { AppError } from '../../src/http/errores';
 import { crearLogger } from '../../src/logger';
 import { extenderConTenant } from '../../src/tenant/extension';
 import { limpiarBase, prismaPrueba } from '../db';
 import { crearMembresia, crearUsuario } from '../fabricas';
-import { cabecerasDeSesion, resolverPrueba } from '../sesion-prueba';
+import { cabecerasDeSesionReal, ORIGEN_PRUEBA, SECRETO_PRUEBA } from '../sesion-real';
 import { verificarAislamiento } from './verificar';
 
 const prismaTenant = extenderConTenant(prismaPrueba);
+const resolverReal = () => crearResolverSesion({ prisma: prismaTenant, secreto: SECRETO_PRUEBA }).resolver;
 
 const crearMembresiaEn = async (organizacionId: string) => {
   const usuario = await crearUsuario();
@@ -134,7 +136,8 @@ describe('verificarAislamiento', () => {
   it('detecta exactamente las rutas que filtran datos de otra empresa', async () => {
     const { app, registro } = crearApp({
       logger: crearLogger('silent'),
-      resolverSesion: resolverPrueba,
+      resolverSesion: resolverReal(),
+      webOrigin: ORIGEN_PRUEBA,
       modulos: [moduloConFugas],
     });
 
@@ -142,7 +145,7 @@ describe('verificarAislamiento', () => {
       app,
       definiciones: registro.definiciones,
       prisma: prismaPrueba,
-      sesionPara: async (ids) => cabecerasDeSesion(ids),
+      sesionPara: cabecerasDeSesionReal,
     });
 
     expect(resultado.revisadas).toBe(6);
@@ -160,7 +163,12 @@ describe('verificarAislamiento', () => {
   });
 
   it('revisa toda ruta cuyo acceso no sea PUBLICA, no solo las TENANT', async () => {
-    const { app } = crearApp({ logger: crearLogger('silent'), resolverSesion: resolverPrueba, modulos: [] });
+    const { app } = crearApp({
+      logger: crearLogger('silent'),
+      resolverSesion: resolverReal(),
+      webOrigin: ORIGEN_PRUEBA,
+      modulos: [],
+    });
     const definiciones: DefinicionRuta[] = [
       { metodo: 'get', ruta: '/publica', acceso: 'PUBLICA' },
       { metodo: 'get', ruta: '/api/interna', acceso: 'INTERNA' as unknown as Acceso },
@@ -169,7 +177,7 @@ describe('verificarAislamiento', () => {
       app,
       definiciones,
       prisma: prismaPrueba,
-      sesionPara: async (ids) => cabecerasDeSesion(ids),
+      sesionPara: cabecerasDeSesionReal,
     });
     expect(resultado.revisadas).toBe(1);
     expect(resultado.fallos).toEqual([{ ruta: 'GET /api/interna', motivo: 'sin escenario de aislamiento' }]);

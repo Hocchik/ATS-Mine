@@ -1,7 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import type { PrismaBase } from '../../src/db/prisma';
 import type { Express } from 'express';
 import request from 'supertest';
-import type { DefinicionRuta } from '../../src/http/registro';
+import { esNoAplica, type DefinicionRuta, type EscenarioAislamiento } from '../../src/http/registro';
 import { crearMembresia, crearOrganizacion, crearUsuario } from '../fabricas';
 
 export interface FalloAislamiento {
@@ -9,7 +10,7 @@ export interface FalloAislamiento {
   motivo: string;
 }
 
-type Escenario = Awaited<ReturnType<NonNullable<DefinicionRuta['aislamiento']>['preparar']>>;
+type Escenario = Awaited<ReturnType<EscenarioAislamiento['preparar']>>;
 
 const patronDeRuta = (ruta: string): RegExp =>
   new RegExp(
@@ -21,23 +22,67 @@ const patronDeRuta = (ruta: string): RegExp =>
 
 export type SesionPara = (ids: { usuarioId: string; organizacionId: string }) => Promise<Record<string, string>>;
 
-export async function verificarAislamiento(opciones: {
+/** Cómo se revisa cada ruta. Falla cerrado: un acceso desconocido se trata como TENANT (exige escenario). */
+function clasificar(def: DefinicionRuta): 'PUBLICA' | 'NO_APLICA' | 'PLATAFORMA' | 'ESCENARIO' {
+  switch (def.acceso) {
+    case 'PUBLICA':
+      return 'PUBLICA';
+    case 'PLATAFORMA':
+      return 'PLATAFORMA';
+    case 'AUTENTICADA':
+      return def.aislamiento && esNoAplica(def.aislamiento) ? 'NO_APLICA' : 'ESCENARIO';
+    case 'TENANT':
+      return 'ESCENARIO';
+    default:
+      return 'ESCENARIO';
+  }
+}
+
+/** PLATAFORMA: un OWNER de una empresa que no es superadmin, con los `:param` como UUID aleatorios, debe recibir 403 FORBIDDEN. */
+async function revisarPlataforma(def: DefinicionRuta, opciones: OpcionesVerificar): Promise<string | null> {
+  const org = await crearOrganizacion();
+  const owner = await crearUsuario();
+  await crearMembresia(owner.id, org.id, 'OWNER');
+  const ruta = def.ruta
+    .split('/')
+    .map((seg) => (seg.startsWith(':') ? randomUUID() : seg))
+    .join('/');
+  const cabeceras = await opciones.sesionPara({ usuarioId: owner.id, organizacionId: org.id });
+  const res = await request(opciones.app)[def.metodo](ruta).set(cabeceras);
+  // Se exige el código, no solo el 403: un CSRF_INVALIDO también es 403 y ocultaría una ruta sin exigirSuperadmin.
+  const codigo = (res.body as { error?: { code?: string } } | undefined)?.error?.code;
+  if (res.status === 403 && codigo === 'FORBIDDEN') return null;
+  return `esperaba 403 FORBIDDEN para alguien que no es superadmin, recibió ${res.status}${codigo ? ` ${codigo}` : ''}`;
+}
+
+interface OpcionesVerificar {
   app: Express;
   definiciones: readonly DefinicionRuta[];
   prisma: PrismaBase;
   sesionPara: SesionPara;
-}): Promise<{ revisadas: number; fallos: FalloAislamiento[] }> {
+}
+
+export async function verificarAislamiento(
+  opciones: OpcionesVerificar,
+): Promise<{ revisadas: number; fallos: FalloAislamiento[] }> {
   const fallos: FalloAislamiento[] = [];
-  // Falla cerrado: toda ruta que no sea PUBLICA se revisa (las fases siguientes agregan INTERNA y PLATAFORMA).
-  const rutasRevisadas = opciones.definiciones.filter((d) => d.acceso !== 'PUBLICA');
+  // Falla cerrado: toda ruta que no sea PUBLICA cuenta como revisada.
+  const rutasRevisadas = opciones.definiciones.filter((d) => clasificar(d) !== 'PUBLICA');
 
   for (const def of rutasRevisadas) {
     const nombre = `${def.metodo.toUpperCase()} ${def.ruta}`;
-    if (!def.aislamiento) {
+    const clase = clasificar(def);
+    if (clase === 'NO_APLICA') continue;
+    if (clase === 'PLATAFORMA') {
+      const motivo = await revisarPlataforma(def, opciones);
+      if (motivo) fallos.push({ ruta: nombre, motivo });
+      continue;
+    }
+    if (!def.aislamiento || esNoAplica(def.aislamiento)) {
       fallos.push({ ruta: nombre, motivo: 'sin escenario de aislamiento' });
       continue;
     }
-
+    const escenarioDef = def.aislamiento;
     const duena = await crearOrganizacion();
     const intrusa = await crearOrganizacion();
     const persona = await crearUsuario();
@@ -56,7 +101,7 @@ export async function verificarAislamiento(opciones: {
     };
 
     // Escenario para el control positivo (y para la verificación si la ruta es de solo lectura).
-    const escenarioControl = await def.aislamiento.preparar(contexto);
+    const escenarioControl = await escenarioDef.preparar(contexto);
     if (!patron.test(escenarioControl.ruta.split('?')[0] ?? '')) {
       fallos.push({ ruta: nombre, motivo: 'la ruta del escenario no coincide con la ruta registrada' });
       continue;
@@ -74,7 +119,7 @@ export async function verificarAislamiento(opciones: {
     }
 
     // Una petición mutante pudo alterar el recurso: se prepara uno nuevo para el intruso.
-    const escenario = def.metodo === 'get' ? escenarioControl : await def.aislamiento.preparar(contexto);
+    const escenario = def.metodo === 'get' ? escenarioControl : await escenarioDef.preparar(contexto);
     if (!patron.test(escenario.ruta.split('?')[0] ?? '')) {
       fallos.push({ ruta: nombre, motivo: 'la ruta del escenario no coincide con la ruta registrada' });
       continue;

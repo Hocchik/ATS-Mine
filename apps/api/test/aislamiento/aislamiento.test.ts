@@ -1,24 +1,29 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { crearApp, type Modulo } from '../../src/app';
+import { crearResolverSesion } from '../../src/auth/resolver-sesion';
 import { crearLogger } from '../../src/logger';
 import { modulosDeLaApp } from '../../src/modulos';
 import { extenderConTenant } from '../../src/tenant/extension';
 import { limpiarBase, prismaPrueba } from '../db';
-import { cabecerasDeSesion, resolverPrueba } from '../sesion-prueba';
+import { cabecerasDeSesionReal, ORIGEN_PRUEBA, SECRETO_PRUEBA } from '../sesion-real';
 import { rutasSinRegistrar } from './rutas-express';
 import { verificarAislamiento } from './verificar';
 
 beforeEach(limpiarBase);
 
+const prismaTenant = extenderConTenant(prismaPrueba);
+const resolverReal = () => crearResolverSesion({ prisma: prismaTenant, secreto: SECRETO_PRUEBA }).resolver;
+
 const appReal = () =>
   crearApp({
     logger: crearLogger('silent'),
-    resolverSesion: resolverPrueba,
-    modulos: modulosDeLaApp({ prisma: extenderConTenant(prismaPrueba) }),
+    resolverSesion: resolverReal(),
+    webOrigin: ORIGEN_PRUEBA,
+    modulos: modulosDeLaApp({ prisma: prismaTenant }),
   });
 
 describe('aislamiento entre empresas (todas las rutas de la app)', () => {
-  it('ninguna ruta TENANT expone datos de otra empresa', async () => {
+  it('ninguna ruta expone datos de otra empresa ni rutas de plataforma a quien no es superadmin', async () => {
     const { app, registro } = appReal();
 
     expect(registro.definiciones.length).toBeGreaterThan(0);
@@ -27,7 +32,7 @@ describe('aislamiento entre empresas (todas las rutas de la app)', () => {
       app,
       definiciones: registro.definiciones,
       prisma: prismaPrueba,
-      sesionPara: async (ids) => cabecerasDeSesion(ids),
+      sesionPara: cabecerasDeSesionReal,
     });
 
     expect(fallos).toEqual([]);
@@ -46,7 +51,8 @@ describe('aislamiento entre empresas (todas las rutas de la app)', () => {
     };
     const { app, registro } = crearApp({
       logger: crearLogger('silent'),
-      resolverSesion: resolverPrueba,
+      resolverSesion: resolverReal(),
+      webOrigin: ORIGEN_PRUEBA,
       modulos: [saltada],
     });
     expect(rutasSinRegistrar(app, registro.definiciones)).toEqual(['GET /api/saltada']);

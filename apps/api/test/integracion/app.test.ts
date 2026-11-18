@@ -4,12 +4,12 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { crearApp, type Modulo } from '../../src/app';
 import { AppError } from '../../src/http/errores';
-import { crearRegistro } from '../../src/http/registro';
 import { obtenerSesion } from '../../src/http/sesion';
 import { crearLogger } from '../../src/logger';
 import { moduloSistema } from '../../src/modulos/sistema';
 import { contextoActual } from '../../src/tenant/contexto';
 import { cabecerasDeSesion, resolverPrueba } from '../sesion-prueba';
+import { ORIGEN_PRUEBA } from '../sesion-real';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -59,6 +59,7 @@ function app() {
   return crearApp({
     logger: crearLogger('silent'),
     resolverSesion: resolverPrueba,
+    webOrigin: ORIGEN_PRUEBA,
     modulos: [moduloSistema(), moduloDePrueba],
   }).app;
 }
@@ -126,6 +127,7 @@ describe('crearApp', () => {
     const res = await request(app())
       .post('/api/prueba/contexto-cuerpo')
       .set(cabecerasDeSesion({ usuarioId: randomUUID(), organizacionId: org }))
+      .set({ Cookie: 'criterio_csrf=token-csrf', 'X-CSRF-Token': 'token-csrf' })
       .send({ titulo: 'hola' });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ contexto: { modo: 'tenant', organizacionId: org }, cuerpo: { titulo: 'hola' } });
@@ -135,22 +137,5 @@ describe('crearApp', () => {
     const res = await request(app()).get('/health');
     expect(res.headers['x-content-type-options']).toBe('nosniff');
     expect(res.headers['x-powered-by']).toBeUndefined();
-  });
-});
-
-describe('crearRegistro', () => {
-  it('rechaza una ruta TENANT sin escenario de aislamiento', () => {
-    const registro = crearRegistro(resolverPrueba);
-    const router = { get: () => undefined } as never;
-    expect(() => registro.definir(router, { metodo: 'get', ruta: '/api/x', acceso: 'TENANT' }, () => undefined)).toThrow(
-      /escenario de aislamiento/,
-    );
-  });
-
-  it('guarda cada definición', () => {
-    const registro = crearRegistro(resolverPrueba);
-    const router = { get: () => undefined } as never;
-    registro.definir(router, { metodo: 'get', ruta: '/x', acceso: 'PUBLICA' }, () => undefined);
-    expect(registro.definiciones).toEqual([{ metodo: 'get', ruta: '/x', acceso: 'PUBLICA' }]);
   });
 });

@@ -21,6 +21,7 @@ const prisma = extenderConTenant(prismaBase);
 const { app } = crearApp({
   logger,
   resolverSesion: sinSesion,
+  webOrigin: config.WEB_ORIGIN,
   modulos: modulosDeLaApp({ prisma }),
 });
 

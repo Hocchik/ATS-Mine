@@ -74,6 +74,7 @@ describe('logs de peticiones HTTP', () => {
     const { app } = crearApp({
       logger: crearLogger('info', destino),
       resolverSesion: sinSesion,
+      webOrigin: 'http://localhost:5173',
       modulos: [moduloSistema()],
     });
     await request(app).get('/health?email=ana@ejemplo.test&q=dato-de-busqueda').set('x-criterio-edge', 'secreto-edge').expect(200);

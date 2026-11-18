@@ -14,10 +14,12 @@ export type Modulo = (ctx: { registro: RegistroRutas; router: Router }) => void;
 export interface DependenciasApp {
   logger: Logger;
   resolverSesion: ResolverSesion;
+  /** Origen web permitido: verificación de `Origin` en métodos que modifican datos. */
+  webOrigin: string;
   modulos: readonly Modulo[];
 }
 
-export function crearApp({ logger, resolverSesion, modulos }: DependenciasApp) {
+export function crearApp({ logger, resolverSesion, webOrigin, modulos }: DependenciasApp) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -37,7 +39,7 @@ export function crearApp({ logger, resolverSesion, modulos }: DependenciasApp) {
   // El resolver de sesión lee la cookie de req.cookies: tiene que estar montado antes del router.
   app.use(cookieParser());
 
-  const registro = crearRegistro(resolverSesion);
+  const registro = crearRegistro({ resolverSesion, webOrigin });
   const router = Router();
   for (const modulo of modulos) modulo({ registro, router });
   app.use(router);
