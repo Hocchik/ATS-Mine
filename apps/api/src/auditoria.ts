@@ -2,12 +2,14 @@ import type { TipoEventoAuditoria } from '@prisma/client';
 import { ejecutarComoPlataforma } from './tenant/contexto';
 import type { PrismaTenant } from './tenant/extension';
 
-const CLAVES_PROHIBIDAS = new Set(
-  ['email', 'telefono', 'documento', 'nombre', 'contrasena', 'password', 'token', 'tokenHash', 'passwordHash'].map((c) =>
-    c.toLowerCase(),
-  ),
-);
+/**
+ * Patrón, no lista exacta: también atrapa variantes (`correo`, `emailUsuario`, `dniCandidato`…). Ante la duda se
+ * rechaza; es un error de programación que debe verse.
+ */
+const CLAVE_PERSONAL = /mail|correo|tel[eé]fono|celular|m[oó]vil|documento|dni|nombre|contras|clave|pass|token|hash/i;
 const MAX_TEXTO = 200;
+const MAX_CLAVE = 64;
+const MAX_IP = 64;
 
 export interface EventoAuditable {
   tipo: TipoEventoAuditoria;
@@ -30,13 +32,20 @@ function sanear(datos: Record<string, string | number | boolean>): Record<string
     if (typeof valor !== 'string' && typeof valor !== 'number' && typeof valor !== 'boolean') {
       throw new Error(`auditar: el valor de "${clave}" debe ser string, number o boolean`);
     }
-    salida[clave] = typeof valor === 'string' ? valor.slice(0, MAX_TEXTO) : valor;
+    salida[clave.slice(0, MAX_CLAVE)] = typeof valor === 'string' ? valor.slice(0, MAX_TEXTO) : valor;
   }
   return salida;
 }
 
 function esClaveProhibida(clave: string): boolean {
-  return CLAVES_PROHIBIDAS.has(clave.toLowerCase());
+  return CLAVE_PERSONAL.test(clave);
+}
+
+/** Solo nombre y código: el mensaje de un error de Prisma puede repetir valores de la consulta. */
+function resumirError(err: unknown): { nombre: string; codigo?: string } {
+  const nombre = err instanceof Error ? err.name : 'Desconocido';
+  const codigo = (err as { code?: unknown } | null)?.code;
+  return typeof codigo === 'string' ? { nombre, codigo } : { nombre };
 }
 
 /** Registra un evento de cuentas. Nunca rompe la operación de negocio: un fallo de base solo se loguea. */
@@ -49,12 +58,12 @@ export async function auditar(prisma: PrismaTenant, evento: EventoAuditable, log
           tipo: evento.tipo,
           usuarioId: evento.usuarioId ?? null,
           organizacionAfectadaId: evento.organizacionAfectadaId ?? null,
-          ip: evento.ip ?? null,
+          ip: evento.ip?.slice(0, MAX_IP) ?? null,
           datos,
         },
       }),
     );
   } catch (err) {
-    logger?.error({ err }, 'auditoria fallida');
+    logger?.error({ error: resumirError(err) }, 'auditoria fallida');
   }
 }

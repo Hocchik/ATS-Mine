@@ -48,6 +48,12 @@ describe('exigirEdge', () => {
     expect(otro.status).toBe(403);
   });
 
+  it('una cabecera no ASCII del mismo largo responde 403, no 500', async () => {
+    const res = await request(appConEdge(EDGE)).get('/api/x').set('x-criterio-edge', 'é'.repeat(40));
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
+  });
+
   it('/public no exige la cabecera', async () => {
     const res = await request(appConEdge(EDGE)).get('/public/x');
     expect(res.status).toBe(200);

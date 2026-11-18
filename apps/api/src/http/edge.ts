@@ -1,12 +1,18 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { Request, RequestHandler, Response } from 'express';
 import { AppError } from './errores';
 
 const CABECERA_EDGE = 'x-criterio-edge';
 
+const digerir = (valor: string) => createHash('sha256').update(valor).digest();
+
+/**
+ * Compara digests de largo fijo: no depende del largo en caracteres (los no ASCII cambian el largo en bytes y
+ * harían lanzar a timingSafeEqual) y no revela el largo del secreto.
+ */
 function coincide(recibido: unknown, esperado: string): boolean {
-  if (typeof recibido !== 'string' || recibido.length !== esperado.length) return false;
-  return timingSafeEqual(Buffer.from(recibido), Buffer.from(esperado));
+  if (typeof recibido !== 'string' || recibido.length === 0) return false;
+  return timingSafeEqual(digerir(recibido), digerir(esperado));
 }
 
 /**

@@ -44,12 +44,30 @@ describe('auditar', () => {
     },
   );
 
-  it('si la base falla, no lanza y registra el error', async () => {
+  it.each(['correo', 'emailUsuario', 'e-mail', 'dniCandidato', 'celular', 'nombreCompleto', 'claveTemporal'])(
+    'rechaza variantes de claves personales: %s',
+    async (clave) => {
+      await expect(auditar(prisma, { tipo: 'LOGIN', datos: { [clave]: 'x' } })).rejects.toThrow(/datos personales/);
+    },
+  );
+
+  it('recorta la IP y las claves largas', async () => {
+    await auditar(prisma, { tipo: 'LOGIN', ip: '1'.repeat(500), datos: { ['k'.repeat(300)]: 1 } });
+    const [fila] = await prismaPrueba.eventoAuditoria.findMany();
+    expect(fila?.ip).toHaveLength(64);
+    expect(Object.keys(fila?.datos as object)[0]).toHaveLength(64);
+  });
+
+  it('si la base falla, no lanza y registra solo el nombre y el código del error', async () => {
     const falso = {
-      eventoAuditoria: { create: vi.fn().mockRejectedValue(new Error('base caída')) },
+      eventoAuditoria: {
+        create: vi.fn().mockRejectedValue(Object.assign(new Error('valor ana@ejemplo.test'), { code: 'P2000' })),
+      },
     } as unknown as PrismaTenant;
     const logger = { error: vi.fn() };
     await expect(auditar(falso, { tipo: 'LOGIN' }, logger)).resolves.toBeUndefined();
     expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(logger.error.mock.calls[0])).not.toContain('ana@ejemplo.test');
+    expect(logger.error.mock.calls[0]?.[0]).toEqual({ error: { nombre: 'Error', codigo: 'P2000' } });
   });
 });
